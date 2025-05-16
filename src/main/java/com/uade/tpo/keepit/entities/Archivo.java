@@ -1,13 +1,19 @@
 package com.uade.tpo.keepit.entities;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.DiscriminatorColumn;
+import jakarta.persistence.DiscriminatorType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Inheritance;
+import jakarta.persistence.InheritanceType;
 import lombok.Data;
 
 @Data
+@Inheritance(strategy = InheritanceType.JOINED) // esto cambia segun la forma de login q terminemos usando
+@DiscriminatorColumn(name = "tipo_archivo", discriminatorType = DiscriminatorType.STRING)
 @Entity
 public abstract class Archivo {
     @Id
@@ -16,10 +22,17 @@ public abstract class Archivo {
 
     @Column(nullable = false)
     private String nombre;
-    @Column(nullable = false)
-    private String password;
     @Column(nullable = false, unique = true)
-    private String email;
+    private String pathLocal;
     @Column(nullable = false, unique = true)
-    private String telefono;
+    private String pathApp;
+
+    public Archivo() {
+    }
+
+    public Archivo(String nombre, String pathLocal, String pathApp) {
+        this.nombre = nombre;
+        this.pathLocal = pathLocal;
+        this.pathApp = pathApp;
+    }
 }
