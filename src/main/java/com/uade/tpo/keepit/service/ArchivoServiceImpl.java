@@ -19,8 +19,9 @@ public class ArchivoServiceImpl implements ArchivoService {
     @Autowired
     ArchivoRepository archivoRepository;
 
-    public List<Archivo> getArchivos() {
-        return archivoRepository.findAll();
+    public List<ArchivoDTO> getArchivos() {
+        List<Archivo> archivos = archivoRepository.findAll();
+        return archivos.stream().map(archivo -> this.toDto(archivo)).toList();
     }
 
     public Optional<Archivo> getArchivoById(Long archivoId) {
@@ -38,7 +39,7 @@ public class ArchivoServiceImpl implements ArchivoService {
         return archivoRepository.save(new Documento(nombre, tamanioBytes, tipoArchivo, fechaSubida, fechaVencimiento));
     }
 
-    private ArchivoDTO toDto(Archivo archivo) {
+    public ArchivoDTO toDto(Archivo archivo) {
         return new ArchivoDTO(
                 archivo.getId(),
                 archivo.getNombre(),

@@ -1,18 +1,31 @@
 package com.uade.tpo.keepit.entities;
 
+import java.util.Collection;
 import java.util.List;
+
+import org.apache.catalina.User;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import lombok.Builder;
 import lombok.Data;
-
-@Entity
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 @Data
-public class Usuario {
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@Entity
+public class Usuario implements UserDetails{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -23,16 +36,40 @@ public class Usuario {
     private String email;
     @Column(nullable = false, unique = true)
     private String telefono;
+    @Enumerated(EnumType.STRING)
+    private Role role;
 
     @OneToMany(mappedBy = "usuario")
     private List<Archivo> archivos;
 
-    public Usuario() {
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
-    public Usuario(String password, String email, String telefono) {
-        this.password = password;
-        this.email = email;
-        this.telefono = telefono;
+    @Override
+    public String getUsername() {
+        return email;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
     }
 }

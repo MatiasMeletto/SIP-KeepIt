@@ -1,4 +1,4 @@
-package com.uade.tpo.keepit.controller;
+package com.uade.tpo.keepit.controllers;
 
 import java.net.URI;
 import java.util.List;
@@ -25,15 +25,15 @@ public class ArchivoController {
     private ArchivoService archivoService;
 
     @GetMapping
-    public ResponseEntity<List<Archivo>> getArchivos() {
+    public ResponseEntity<List<ArchivoDTO>> getArchivos() {
         return ResponseEntity.ok(archivoService.getArchivos());
     }
 
     @GetMapping("/{archivoId}")
-    public ResponseEntity<Archivo> getArchivoById(@PathVariable Long archivoId) {
+    public ResponseEntity<ArchivoDTO> getArchivoById(@PathVariable Long archivoId) {
         Optional<Archivo> result = archivoService.getArchivoById(archivoId);
         if (result.isPresent())
-            return ResponseEntity.ok(result.get());
+            return ResponseEntity.ok(archivoService.toDto(result.get()));
         return ResponseEntity.noContent().build();
     }
 
