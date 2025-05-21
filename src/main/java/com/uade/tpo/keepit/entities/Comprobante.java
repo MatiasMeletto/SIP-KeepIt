@@ -7,6 +7,8 @@ import com.uade.tpo.keepit.enums.Categoria;
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -19,15 +21,15 @@ public class Comprobante extends Archivo {
     private Date fechaCreacion;
     @Column(nullable = false)
     private Double monto;
-    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private Categoria tipoCategoria;
 
     public Comprobante() {
     }
 
-    public Comprobante(String nombre, String pathLocal, String pathApp, Date fechaCreacion, Double monto,
+    public Comprobante(String nombre, Long tamanioBytes, String tipoExtension, Date fechaCreacion, Double monto,
             Categoria tipoCategoria) {
-        super(nombre, pathLocal, pathApp);
+        super(nombre, tamanioBytes, tipoExtension);
         this.fechaCreacion = fechaCreacion;
         this.monto = monto;
         this.tipoCategoria = tipoCategoria;

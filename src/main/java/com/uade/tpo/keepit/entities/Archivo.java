@@ -1,5 +1,7 @@
 package com.uade.tpo.keepit.entities;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorColumn;
 import jakarta.persistence.DiscriminatorType;
@@ -15,7 +17,7 @@ import lombok.Data;
 
 @Data
 @Inheritance(strategy = InheritanceType.JOINED) // esto cambia segun la forma de login q terminemos usando
-@DiscriminatorColumn(name = "tipo_archivo", discriminatorType = DiscriminatorType.STRING)
+@DiscriminatorColumn(name = "tipoArchivo", discriminatorType = DiscriminatorType.STRING)
 @Entity
 public abstract class Archivo {
     @Id
@@ -24,21 +26,33 @@ public abstract class Archivo {
 
     @Column(nullable = false)
     private String nombre;
-    @Column(nullable = false, unique = true)
+
+    @Column(nullable = true, unique = true)
     private String pathLocal;
-    @Column(nullable = false, unique = true)
+
+    @Column(nullable = true, unique = true)
     private String pathApp;
+
+    @Column(nullable = false)
+    private String tipoExtension; // esto no es un enum y es un string porque conviene guardarlo con la extension
+                                  // para recuperar el archivo mas facilmente
+
+    @Column(nullable = false)
+    private Long tamanioBytes;
+
+    @Column(nullable = false)
+    private Boolean eliminado = false;
 
     @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
-    
+
     public Archivo() {
     }
 
-    public Archivo(String nombre, String pathLocal, String pathApp) {
+    public Archivo(String nombre, Long tamanioBytes, String tipoExtension) {
         this.nombre = nombre;
-        this.pathLocal = pathLocal;
-        this.pathApp = pathApp;
+        this.tamanioBytes = tamanioBytes;
+        this.tipoExtension = tipoExtension;
     }
 }
