@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class KeepitApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(KeepitApplication.class, args);
+		SpringApplication.run(KeepitApplication.class, args); // 😭😂🫃🏼
 	}
 
 }
