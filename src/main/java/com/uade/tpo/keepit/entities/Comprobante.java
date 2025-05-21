@@ -25,9 +25,9 @@ public class Comprobante extends Archivo {
     public Comprobante() {
     }
 
-    public Comprobante(String nombre, String pathLocal, String pathApp, Date fechaCreacion, Double monto,
+    public Comprobante(String nombre, Long tamanioBytes, String tipoArchivo, Date fechaCreacion, Double monto,
             Categoria tipoCategoria) {
-        super(nombre, pathLocal, pathApp);
+        super(nombre, tamanioBytes, tipoArchivo);
         this.fechaCreacion = fechaCreacion;
         this.monto = monto;
         this.tipoCategoria = tipoCategoria;

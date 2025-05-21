@@ -34,7 +34,7 @@ public abstract class Archivo {
     private String pathApp;
 
     @Column(nullable = false)
-    private String tipoArchivo;
+    private String tipoArchivo; // esto no es un enum y es un string porque conviene guardarlo con la extension para recuperar el archivo mas facilmente
 
     @Column(nullable = false)
     private Long tamanioBytes;
