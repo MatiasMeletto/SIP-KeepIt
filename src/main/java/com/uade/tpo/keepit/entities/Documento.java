@@ -1,6 +1,7 @@
 package com.uade.tpo.keepit.entities;
 
 import java.sql.Date;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
@@ -14,16 +15,16 @@ import lombok.EqualsAndHashCode;
 @Data
 public class Documento extends Archivo {
     @Column(nullable = false)
-    private Date fechaCreacion;
+    private Date fechaSubida;
     @Column(nullable = false)
     private Date fechaVencimiento;
 
     public Documento() {
     }
 
-    public Documento(String nombre, String pathLocal, String pathApp, Date fechaCreacion, Date fechaVencimiento) {
-        super(nombre, pathLocal, pathApp);
-        this.fechaCreacion = fechaCreacion;
+    public Documento(String nombre, Long tamanioBytes, String tipoArchivo, Date fechaSubida, Date fechaVencimiento) {
+        super(nombre, tamanioBytes, tipoArchivo);
+        this.fechaSubida = fechaSubida;
         this.fechaVencimiento = fechaVencimiento;
-    }  
+    }
 }
