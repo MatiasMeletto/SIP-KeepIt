@@ -42,7 +42,7 @@ public class ArchivoServiceImpl implements ArchivoService {
         return new ArchivoDTO(
                 archivo.getId(),
                 archivo.getNombre(),
-                archivo.getTipoArchivo(),
+                archivo.getTipoExtension(),
                 archivo.getTamanioBytes(),
                 null,
                 null);

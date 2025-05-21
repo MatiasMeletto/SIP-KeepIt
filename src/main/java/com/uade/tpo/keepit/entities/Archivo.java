@@ -17,7 +17,7 @@ import lombok.Data;
 
 @Data
 @Inheritance(strategy = InheritanceType.JOINED) // esto cambia segun la forma de login q terminemos usando
-@DiscriminatorColumn(name = "tipo_archivo", discriminatorType = DiscriminatorType.STRING)
+@DiscriminatorColumn(name = "tipoArchivo", discriminatorType = DiscriminatorType.STRING)
 @Entity
 public abstract class Archivo {
     @Id
@@ -34,7 +34,7 @@ public abstract class Archivo {
     private String pathApp;
 
     @Column(nullable = false)
-    private String tipoArchivo; // esto no es un enum y es un string porque conviene guardarlo con la extension para recuperar el archivo mas facilmente
+    private String tipoExtension; // esto no es un enum y es un string porque conviene guardarlo con la extension para recuperar el archivo mas facilmente
 
     @Column(nullable = false)
     private Long tamanioBytes;
@@ -49,9 +49,9 @@ public abstract class Archivo {
     public Archivo() {
     }
 
-    public Archivo(String nombre, Long tamanioBytes, String tipoArchivo) {
+    public Archivo(String nombre, Long tamanioBytes, String tipoExtension) {
         this.nombre = nombre;
         this.tamanioBytes = tamanioBytes;
-        this.tipoArchivo = tipoArchivo;
+        this.tipoExtension = tipoExtension;
     }
 }
