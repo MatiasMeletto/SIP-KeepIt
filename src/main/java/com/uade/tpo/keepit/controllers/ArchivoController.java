@@ -5,13 +5,16 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.uade.tpo.keepit.DTO.ArchivoDTO;
 import com.uade.tpo.keepit.entities.Archivo;
@@ -37,16 +40,36 @@ public class ArchivoController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping
-    public ResponseEntity<Object> createArchivo(@RequestBody ArchivoDTO archivoDto)
+    @PostMapping(consumes = "multipart/form-data")
+    public ResponseEntity<Object> createArchivo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("nombre") String nombre,
+            @RequestParam("tamanioBytes") Long tamanioBytes,
+            @RequestParam("tipoArchivo") String tipoArchivo,
+            @RequestParam("fechaSubida") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.util.Date fechaSubida,
+            @RequestParam("fechaVencimiento") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.util.Date fechaVencimiento)
             throws ArchivoDuplicadoException {
 
         Archivo result = archivoService.createArchivo(
-                archivoDto.getNombre(),
-                archivoDto.getTamanioBytes(),
-                archivoDto.getTipoArchivo(),
-                archivoDto.getFechaSubida(),
-                archivoDto.getFechaVencimiento());
+                nombre,
+                tamanioBytes,
+                tipoArchivo,
+                new java.sql.Date(fechaSubida.getTime()),
+                new java.sql.Date(fechaVencimiento.getTime()));
+
+        // Guardar archivo en disco
+        try {
+            String uploadDir = "uploads";
+            java.nio.file.Path uploadPath = java.nio.file.Paths.get(uploadDir);
+            if (!java.nio.file.Files.exists(uploadPath)) {
+                java.nio.file.Files.createDirectories(uploadPath);
+            }
+
+            java.nio.file.Path filePath = uploadPath.resolve(file.getOriginalFilename());
+            file.transferTo(filePath.toFile());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error al guardar el archivo en disco: " + e.getMessage());
+        }
 
         return ResponseEntity
                 .created(URI.create("/archivos/" + result.getId()))
