@@ -1,6 +1,7 @@
 package com.uade.tpo.keepit.controllers;
 
 import java.net.URI;
+import java.security.Principal;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,7 +19,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.uade.tpo.keepit.DTO.ArchivoDTO;
 import com.uade.tpo.keepit.entities.Archivo;
+import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.exceptions.ArchivoDuplicadoException;
+import com.uade.tpo.keepit.repository.UserRepository;
 import com.uade.tpo.keepit.service.ArchivoService;
 
 @RestController
@@ -26,6 +29,9 @@ import com.uade.tpo.keepit.service.ArchivoService;
 public class ArchivoController {
     @Autowired
     private ArchivoService archivoService;
+
+    @Autowired
+    private UserRepository usuarioRepository;
 
     @GetMapping
     public ResponseEntity<List<ArchivoDTO>> getArchivos() {
@@ -47,15 +53,20 @@ public class ArchivoController {
             @RequestParam("tamanioBytes") Long tamanioBytes,
             @RequestParam("tipoArchivo") String tipoArchivo,
             @RequestParam("fechaSubida") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.util.Date fechaSubida,
-            @RequestParam("fechaVencimiento") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.util.Date fechaVencimiento)
+            @RequestParam("fechaVencimiento") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) java.util.Date fechaVencimiento,
+            Principal principal)
             throws ArchivoDuplicadoException {
+
+        Usuario usuario = usuarioRepository.findByEmail(principal.getName())
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
         Archivo result = archivoService.createArchivo(
                 nombre,
                 tamanioBytes,
                 tipoArchivo,
                 new java.sql.Date(fechaSubida.getTime()),
-                new java.sql.Date(fechaVencimiento.getTime()));
+                new java.sql.Date(fechaVencimiento.getTime()),
+                usuario);
 
         // Guardar archivo en disco
         try {

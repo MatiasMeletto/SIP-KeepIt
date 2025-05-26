@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import com.uade.tpo.keepit.DTO.ArchivoDTO;
 import com.uade.tpo.keepit.entities.Archivo;
+import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.exceptions.ArchivoDuplicadoException;
 
 public interface ArchivoService {
@@ -14,7 +15,7 @@ public interface ArchivoService {
     public Optional<Archivo> getArchivoById(Long archivoId);
 
     public Archivo createArchivo(String nombre, Long tamanioBytes, String tipoArchivo, Date fechaSubida,
-            Date fechaVencimiento)
+            Date fechaVencimiento, Usuario user)
             throws ArchivoDuplicadoException;
 
     public ArchivoDTO toDto(Archivo archivo);
