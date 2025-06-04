@@ -44,7 +44,7 @@ public abstract class Archivo {
     private Boolean eliminado = false;
 
     @ManyToOne
-    @JoinColumn(name = "usuario_id", nullable = false)
+    @JoinColumn(name = "usuario_id", nullable = true)
     private Usuario usuario;
 
     public Archivo() {

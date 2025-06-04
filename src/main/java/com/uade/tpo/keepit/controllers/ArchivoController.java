@@ -59,7 +59,7 @@ public class ArchivoController {
 
         // Guardar archivo en disco
         try {
-            String uploadDir = "uploads";
+            String uploadDir = System.getProperty("user.dir") + "/uploads";
             java.nio.file.Path uploadPath = java.nio.file.Paths.get(uploadDir);
             if (!java.nio.file.Files.exists(uploadPath)) {
                 java.nio.file.Files.createDirectories(uploadPath);
