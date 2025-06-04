@@ -50,9 +50,10 @@ public abstract class Archivo {
     public Archivo() {
     }
 
-    public Archivo(String nombre, Long tamanioBytes, String tipoExtension) {
+    public Archivo(String nombre, Long tamanioBytes, String tipoExtension, Usuario user) {
         this.nombre = nombre;
         this.tamanioBytes = tamanioBytes;
         this.tipoExtension = tipoExtension;
+        this.usuario = user;
     }
 }

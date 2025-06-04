@@ -22,8 +22,9 @@ public class Documento extends Archivo {
     public Documento() {
     }
 
-    public Documento(String nombre, Long tamanioBytes, String tipoExtension, Date fechaSubida, Date fechaVencimiento) {
-        super(nombre, tamanioBytes, tipoExtension);
+    public Documento(String nombre, Long tamanioBytes, String tipoExtension, Usuario user, Date fechaSubida,
+            Date fechaVencimiento) {
+        super(nombre, tamanioBytes, tipoExtension, user);
         this.fechaSubida = fechaSubida;
         this.fechaVencimiento = fechaVencimiento;
     }

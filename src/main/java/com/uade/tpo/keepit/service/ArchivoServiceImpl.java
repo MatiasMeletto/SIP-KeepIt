@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.uade.tpo.keepit.DTO.ArchivoDTO;
 import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Documento;
+import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.exceptions.ArchivoDuplicadoException;
 import com.uade.tpo.keepit.repository.ArchivoRepository;
 
@@ -30,13 +31,13 @@ public class ArchivoServiceImpl implements ArchivoService {
 
     // Aplicar lógica para delegar al controler luego
     public Archivo createArchivo(String nombre, Long tamanioBytes, String tipoArchivo, Date fechaSubida,
-            Date fechaVencimiento)
+            Date fechaVencimiento, Usuario user)
             throws ArchivoDuplicadoException {
         List<Archivo> archivos = archivoRepository.findAll();
         if (archivos.stream().anyMatch(archivo -> archivo.getNombre().equals(nombre)))
             throw new ArchivoDuplicadoException();
-
-        return archivoRepository.save(new Documento(nombre, tamanioBytes, tipoArchivo, fechaSubida, fechaVencimiento));
+        return archivoRepository
+                .save(new Documento(nombre, tamanioBytes, tipoArchivo, user, fechaSubida, fechaVencimiento));
     }
 
     public ArchivoDTO toDto(Archivo archivo) {
@@ -46,6 +47,7 @@ public class ArchivoServiceImpl implements ArchivoService {
                 archivo.getTipoExtension(),
                 archivo.getTamanioBytes(),
                 null,
-                null);
+                null,
+                archivo.getUsuario());
     }
 }

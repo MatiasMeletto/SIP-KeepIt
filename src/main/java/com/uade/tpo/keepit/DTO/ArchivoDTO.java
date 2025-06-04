@@ -2,6 +2,8 @@ package com.uade.tpo.keepit.DTO;
 
 import java.sql.Date;
 
+import com.uade.tpo.keepit.entities.Usuario;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,4 +18,5 @@ public class ArchivoDTO {
     private Long tamanioBytes;
     private Date fechaSubida;
     private Date fechaVencimiento;
+    private Usuario user;
 }

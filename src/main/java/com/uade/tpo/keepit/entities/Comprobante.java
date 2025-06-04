@@ -27,9 +27,10 @@ public class Comprobante extends Archivo {
     public Comprobante() {
     }
 
-    public Comprobante(String nombre, Long tamanioBytes, String tipoExtension, Date fechaCreacion, Double monto,
+    public Comprobante(String nombre, Long tamanioBytes, String tipoExtension, Usuario user, Date fechaCreacion,
+            Double monto,
             Categoria tipoCategoria) {
-        super(nombre, tamanioBytes, tipoExtension);
+        super(nombre, tamanioBytes, tipoExtension, user);
         this.fechaCreacion = fechaCreacion;
         this.monto = monto;
         this.tipoCategoria = tipoCategoria;
