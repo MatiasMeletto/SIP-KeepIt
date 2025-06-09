@@ -1,7 +1,6 @@
 package com.uade.tpo.keepit.service;
 
 import java.sql.Date;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,9 +44,11 @@ public class ArchivoServiceImpl implements ArchivoService {
                 archivo.getId(),
                 archivo.getNombre(),
                 archivo.getTipoExtension(),
+                archivo.getPathApp(),
+                archivo.getPathLocal(),
                 archivo.getTamanioBytes(),
-                null,
-                null,
+                archivo instanceof Documento ? ((Documento) archivo).getFechaSubida() : null,
+                archivo instanceof Documento ? ((Documento) archivo).getFechaVencimiento() : null,
                 archivo.getUsuario());
     }
 }

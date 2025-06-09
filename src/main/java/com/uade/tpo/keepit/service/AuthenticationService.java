@@ -1,7 +1,5 @@
 package com.uade.tpo.keepit.service;
 
-import java.util.Optional;
-
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -15,7 +13,6 @@ import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
-import lombok.experimental.var;
 
 @Service
 @RequiredArgsConstructor

@@ -1,7 +1,6 @@
 package com.uade.tpo.keepit.entities;
 
 import java.sql.Date;
-import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.DiscriminatorValue;
