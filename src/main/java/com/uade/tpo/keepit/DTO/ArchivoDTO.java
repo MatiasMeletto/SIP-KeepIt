@@ -15,6 +15,7 @@ public class ArchivoDTO {
     private Long id;
     private String nombre;
     private String tipoArchivo;
+    private String path;
     private Long tamanioBytes;
     private Date fechaSubida;
     private Date fechaVencimiento;
