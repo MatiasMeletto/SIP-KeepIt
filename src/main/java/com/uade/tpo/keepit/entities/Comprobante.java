@@ -1,5 +1,6 @@
 package com.uade.tpo.keepit.entities;
 
+import java.io.IOException;
 import java.sql.Date;
 
 import com.uade.tpo.keepit.enums.Categoria;
@@ -11,6 +12,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.springframework.web.multipart.MultipartFile;
 
 @Entity
 @Data
@@ -27,10 +29,10 @@ public class Comprobante extends Archivo {
     public Comprobante() {
     }
 
-    public Comprobante(String nombre, Long tamanioBytes, String tipoExtension, Usuario user, Date fechaCreacion,
-            Double monto,
-            Categoria tipoCategoria) {
-        super(nombre, tamanioBytes, tipoExtension, user);
+    public Comprobante(MultipartFile archivo, Usuario user, String nombreTitular, String direccionTitular, 
+                       String emailTitular, String telefonoTitular, String documentoIdentidadTitular,
+                       Date fechaCreacion, Double monto, Categoria tipoCategoria) throws IOException {
+        super(archivo, user, nombreTitular, direccionTitular, emailTitular, telefonoTitular, documentoIdentidadTitular);
         this.fechaCreacion = fechaCreacion;
         this.monto = monto;
         this.tipoCategoria = tipoCategoria;

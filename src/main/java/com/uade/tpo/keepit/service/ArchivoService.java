@@ -1,8 +1,9 @@
 package com.uade.tpo.keepit.service;
 
-import java.sql.Date;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.web.multipart.MultipartFile;
 
 import com.uade.tpo.keepit.DTO.ArchivoDTO;
 import com.uade.tpo.keepit.entities.Archivo;
@@ -14,8 +15,12 @@ public interface ArchivoService {
 
     public Optional<Archivo> getArchivoById(Long archivoId);
 
-    public Archivo createArchivo(String nombre, Long tamanioBytes, String tipoArchivo, Date fechaSubida,
-            Date fechaVencimiento, Usuario user)
+    public Archivo createArchivo(MultipartFile file, Usuario user)
+            throws ArchivoDuplicadoException;
+
+    public Archivo createArchivo(MultipartFile file, Usuario user, String nombreTitular, 
+                                String direccionTitular, String emailTitular, 
+                                String telefonoTitular, String documentoIdentidadTitular)
             throws ArchivoDuplicadoException;
 
     public ArchivoDTO toDto(Archivo archivo);

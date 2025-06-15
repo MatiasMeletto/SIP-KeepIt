@@ -1,5 +1,6 @@
 package com.uade.tpo.keepit.entities;
 
+import java.io.IOException;
 import java.sql.Date;
 
 import jakarta.persistence.Column;
@@ -7,6 +8,7 @@ import jakarta.persistence.DiscriminatorValue;
 import jakarta.persistence.Entity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.springframework.web.multipart.MultipartFile;
 
 @DiscriminatorValue("documento")
 @EqualsAndHashCode(callSuper = true)
@@ -21,9 +23,10 @@ public class Documento extends Archivo {
     public Documento() {
     }
 
-    public Documento(String nombre, Long tamanioBytes, String tipoExtension, Usuario user, Date fechaSubida,
-            Date fechaVencimiento) {
-        super(nombre, tamanioBytes, tipoExtension, user);
+    public Documento(MultipartFile archivo, Usuario user, String nombreTitular, String direccionTitular, 
+                     String emailTitular, String telefonoTitular, String documentoIdentidadTitular,
+                     Date fechaSubida, Date fechaVencimiento) throws IOException {
+        super(archivo, user, nombreTitular, direccionTitular, emailTitular, telefonoTitular, documentoIdentidadTitular);
         this.fechaSubida = fechaSubida;
         this.fechaVencimiento = fechaVencimiento;
     }
