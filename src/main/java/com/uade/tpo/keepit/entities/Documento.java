@@ -17,7 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class Documento extends Archivo {
     @Column(nullable = false)
     private Date fechaSubida;
-    @Column(nullable = false)
+    @Column(nullable = true)
     private Date fechaVencimiento;
 
     public Documento() {

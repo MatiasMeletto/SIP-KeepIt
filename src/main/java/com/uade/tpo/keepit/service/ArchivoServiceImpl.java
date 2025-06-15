@@ -46,13 +46,36 @@ public class ArchivoServiceImpl implements ArchivoService {
 
     @Override
     public Archivo createArchivo(MultipartFile file, Usuario user, String nombreTitular, 
-                                String direccionTitular, String emailTitular, 
-                                String telefonoTitular, String documentoIdentidadTitular) 
-            throws ArchivoDuplicadoException {
+                            String direccionTitular, String emailTitular, 
+                            String telefonoTitular, String documentoIdentidadTitular) 
+        throws ArchivoDuplicadoException {
         try {
-            // *** AQUÍ ENTRA LA MAGIA DE LA IA ***
-            ClasificacionResult clasificacion = clasificadorService.analizarArchivo(
-                file.getBytes(), file.getContentType());
+            ClasificacionResult clasificacion;
+            
+            try {
+                // *** INTENTAR IA ***
+                System.out.println("=== Intentando IA de Google Cloud ===");
+                clasificacion = clasificadorService.analizarArchivo(
+                    file.getBytes(), file.getContentType());
+                System.out.println("=== IA exitosa: " + clasificacion.getCarpeta() + " ===");
+                
+            } catch (Exception iaError) {
+                // *** FALLBACK: Clasificación manual básica ***
+                System.out.println("=== IA falló, usando fallback: " + iaError.getMessage() + " ===");
+                
+                String nombreArchivo = file.getOriginalFilename().toLowerCase();
+                if (nombreArchivo.contains("factura") || nombreArchivo.contains("invoice")) {
+                    clasificacion = new ClasificacionResult("comprobantes/facturas", "COMPROBANTE", 
+                            150.0, null, new java.sql.Date(System.currentTimeMillis()), "FACTURAS");
+                } else {
+                    // *** CORREGIR AQUÍ: fechaVencimiento NO debe ser null ***
+                    clasificacion = new ClasificacionResult("documentos/general", "DOCUMENTO", 
+                            null, 
+                            new java.sql.Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000), // fechaVencimiento
+                            new java.sql.Date(System.currentTimeMillis()), // fechaCreacion
+                            null);
+                }
+            }
             
             Archivo archivo;
             
