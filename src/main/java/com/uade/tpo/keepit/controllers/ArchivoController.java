@@ -12,6 +12,8 @@ import com.uade.tpo.keepit.DTO.ArchivoDTO;
 import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.exceptions.ArchivoDuplicadoException;
+import com.uade.tpo.keepit.model.ClasificacionResult;
+import com.uade.tpo.keepit.service.ArchivoClasificadorService;
 import com.uade.tpo.keepit.service.ArchivoService;
 import com.uade.tpo.keepit.service.UsuarioService;
 
@@ -27,6 +29,9 @@ public class ArchivoController {
 
     @Autowired
     private UsuarioService usuarioService;
+
+    @Autowired
+    private ArchivoClasificadorService archivoClasificadorService;
 
     @GetMapping
     public ResponseEntity<List<ArchivoDTO>> getArchivos() {
@@ -53,7 +58,7 @@ public class ArchivoController {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType(archivo.getTipoExtension()));
             headers.setContentDisposition(ContentDisposition.attachment()
-                .filename(archivo.getNombreArchivo())
+                .filename(archivo.getNombre())
                 .build());
             
             return ResponseEntity.ok()
@@ -79,6 +84,43 @@ public class ArchivoController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
                     .body("Error al guardar el archivo: " + e.getMessage());
+        }
+    }
+        // Agregar este endpoint para ver la clasificación antes de guardar (opcional):
+    
+    @PostMapping("/preview")
+    public ResponseEntity<ClasificacionResult> previewClasificacion(
+            @RequestParam("file") MultipartFile file) {
+        try {
+            ClasificacionResult resultado = archivoClasificadorService.analizarArchivo(
+                file.getBytes(), file.getContentType());
+            return ResponseEntity.ok(resultado);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+        // Agregar este endpoint:
+    
+    @PostMapping("/{archivoId}/reclasificar")
+    public ResponseEntity<ArchivoDTO> reclasificarArchivo(@PathVariable Long archivoId) {
+        try {
+            Optional<Archivo> archivoOpt = archivoService.getArchivoById(archivoId);
+            if (archivoOpt.isPresent()) {
+                Archivo archivo = archivoOpt.get();
+                
+                // Reclasificar con IA
+                ClasificacionResult nuevaClasificacion = archivoClasificadorService
+                    .analizarArchivo(archivo.getContenido(), archivo.getTipoExtension());
+                
+                // Actualizar carpeta
+                archivo.setCarpeta(nuevaClasificacion.getCarpeta());
+                
+                return ResponseEntity.ok(archivoService.toDto(archivo));
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

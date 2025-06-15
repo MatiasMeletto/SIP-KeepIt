@@ -17,7 +17,7 @@ public abstract class Archivo {
     private Long id;
 
     @Column(nullable = false)
-    private String nombreArchivo;
+    private String nombre;
 
     @Lob
     @Column(columnDefinition = "LONGBLOB")
@@ -47,6 +47,9 @@ public abstract class Archivo {
     @Column
     private String documentoIdentidadTitular;
 
+    @Column
+    private String carpeta;
+
     @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = true)
     private Usuario usuario;
@@ -55,7 +58,7 @@ public abstract class Archivo {
     }
 
     public Archivo(MultipartFile archivo, Usuario user) throws IOException {
-        this.nombreArchivo = archivo.getOriginalFilename();
+        this.nombre = archivo.getOriginalFilename();
         this.contenido = archivo.getBytes();
         this.tamanioBytes = archivo.getSize();
         this.tipoExtension = archivo.getContentType();
@@ -64,7 +67,7 @@ public abstract class Archivo {
 
     public Archivo(MultipartFile archivo, Usuario user, String nombreTitular, String direccionTitular, 
                    String emailTitular, String telefonoTitular, String documentoIdentidadTitular) throws IOException {
-        this.nombreArchivo = archivo.getOriginalFilename();
+        this.nombre = archivo.getOriginalFilename();
         this.contenido = archivo.getBytes();
         this.tamanioBytes = archivo.getSize();
         this.tipoExtension = archivo.getContentType();

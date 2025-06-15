@@ -23,16 +23,16 @@ public class SecurityConfig {
 
         @Bean
         public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-                http
-                                .csrf(AbstractHttpConfigurer::disable)
-                                .authorizeHttpRequests(req -> req
-                                                .requestMatchers("/api/v1/auth/**").permitAll()
-                                                .requestMatchers("/api/archivo").hasRole("ADMIN")
-                                                .anyRequest().authenticated())
-                                .sessionManagement(session -> session.sessionCreationPolicy(STATELESS))
-                                .authenticationProvider(authenticationProvider)
-                                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+        http
+        .csrf(AbstractHttpConfigurer::disable)
+        .authorizeHttpRequests(req -> req
+            .requestMatchers("/api/v1/auth/**").permitAll()
+            .requestMatchers("/api/archivo/**").authenticated() // Cambiar aquí
+            .anyRequest().authenticated())
+        .sessionManagement(session -> session.sessionCreationPolicy(STATELESS))
+        .authenticationProvider(authenticationProvider)
+        .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
-                return http.build();
-        }
+    return http.build();
+}
 }
