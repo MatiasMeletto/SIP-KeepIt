@@ -12,11 +12,13 @@ import org.springframework.web.multipart.MultipartFile;
 import com.uade.tpo.keepit.DTO.ArchivoDTO;
 import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Comprobante;
+import com.uade.tpo.keepit.entities.Directorio;
 import com.uade.tpo.keepit.entities.Documento;
 import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.enums.Categoria;
 import com.uade.tpo.keepit.exceptions.ArchivoDuplicadoException;
 import com.uade.tpo.keepit.model.ClasificacionResult;
+import com.uade.tpo.keepit.model.ExtraccionAtributos;
 import com.uade.tpo.keepit.repository.ArchivoRepository;
 
 @Service
@@ -41,63 +43,67 @@ public class ArchivoServiceImpl implements ArchivoService {
 
     @Override
     public Archivo createArchivo(MultipartFile file, Usuario user) throws ArchivoDuplicadoException {
-        return createArchivo(file, user, null, null, null, null, null);
-    }
-
-    @Override
-    public Archivo createArchivo(MultipartFile file, Usuario user, String nombreTitular, 
-                            String direccionTitular, String emailTitular, 
-                            String telefonoTitular, String documentoIdentidadTitular) 
-        throws ArchivoDuplicadoException {
         try {
-            ClasificacionResult clasificacion;
+            // Usar el nuevo clasificador que implementa directorios
+            ClasificacionResult clasificacion = clasificadorService.clasificarArchivo(file);
             
-            try {
-                // *** INTENTAR IA ***
-                System.out.println("=== Intentando IA de Google Cloud ===");
-                clasificacion = clasificadorService.analizarArchivo(
-                    file.getBytes(), file.getContentType());
-                System.out.println("=== IA exitosa: " + clasificacion.getCarpeta() + " ===");
-                
-            } catch (Exception iaError) {
-                // *** FALLBACK: Clasificación manual básica ***
-                System.out.println("=== IA falló, usando fallback: " + iaError.getMessage() + " ===");
-                
-                String nombreArchivo = file.getOriginalFilename().toLowerCase();
-                if (nombreArchivo.contains("factura") || nombreArchivo.contains("invoice")) {
-                    clasificacion = new ClasificacionResult("comprobantes/facturas", "COMPROBANTE", 
-                            150.0, null, new java.sql.Date(System.currentTimeMillis()), "FACTURAS");
-                } else {
-                    // *** CORREGIR AQUÍ: fechaVencimiento NO debe ser null ***
-                    clasificacion = new ClasificacionResult("documentos/general", "DOCUMENTO", 
-                            null, 
-                            new java.sql.Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000), // fechaVencimiento
-                            new java.sql.Date(System.currentTimeMillis()), // fechaCreacion
-                            null);
-                }
-            }
+            // Obtener atributos y directorio identificados
+            ExtraccionAtributos atributos = clasificacion.getAtributos();
+            Directorio directorio = clasificacion.getDirectorio();
             
+            // Crear el tipo de archivo según el resultado del análisis
             Archivo archivo;
             
-            // Crear Documento o Comprobante según la IA
-            if ("COMPROBANTE".equals(clasificacion.getTipoArchivo())) {
-                Categoria categoria = mapearCategoria(clasificacion.getCategoria());
+            // Si detectó un monto, es probable que sea un comprobante
+            if (atributos.getMonto() != null) {
+                Comprobante comprobante = new Comprobante();
+                comprobante.setMonto(atributos.getMonto());
                 
-                archivo = new Comprobante(file, user, nombreTitular, direccionTitular, 
-                                        emailTitular, telefonoTitular, documentoIdentidadTitular,
-                                        clasificacion.getFechaCreacion(), 
-                                        clasificacion.getMonto(),
-                                        categoria);
+                // Determinar categoría basada en el texto o carpeta
+                Categoria categoria = determinarCategoria(clasificacion.getCarpeta());
+                comprobante.setTipoCategoria(categoria);  // Corregido: tipoCategoria en lugar de categoria
+                
+                // No existe setRazonSocialEmisor en Comprobante según la entidad proporcionada
+                // if (atributos.getEmisor() != null) {
+                //    comprobante.setRazonSocialEmisor(atributos.getEmisor());
+                // }
+                
+                // Establecer fecha de creación
+                comprobante.setFechaCreacion(
+                    atributos.getFecha() != null 
+                    ? java.sql.Date.valueOf(convertirFormatoFecha(atributos.getFecha()))
+                    : new java.sql.Date(System.currentTimeMillis())
+                );
+                
+                archivo = comprobante;
             } else {
-                archivo = new Documento(file, user, nombreTitular, direccionTitular, 
-                                       emailTitular, telefonoTitular, documentoIdentidadTitular,
-                                       clasificacion.getFechaCreacion(), 
-                                       clasificacion.getFechaVencimiento());
+                // Si no detectó monto, lo tratamos como documento
+                Documento documento = new Documento();
+                
+                // Fecha de subida (hoy)
+                documento.setFechaSubida(new java.sql.Date(System.currentTimeMillis()));
+                
+                // Fecha de vencimiento (1 año por defecto)
+                documento.setFechaVencimiento(
+                    atributos.getFecha() != null 
+                    ? java.sql.Date.valueOf(convertirFormatoFecha(atributos.getFecha()))
+                    : new java.sql.Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000)
+                );
+                
+                archivo = documento;
             }
             
-            // Asignar carpeta automáticamente
-            archivo.setCarpeta(clasificacion.getCarpeta());
+            // Establecer propiedades comunes
+            archivo.setNombre(file.getOriginalFilename());
+            archivo.setTipoExtension(file.getContentType());
+            archivo.setTamanioBytes(file.getSize());
+            archivo.setContenido(file.getBytes());
+            archivo.setUsuario(user);
+            archivo.setDirectorio(directorio);
+            archivo.setCarpeta(directorio.getRutaCompleta());
+            archivo.setEliminado(false);
             
+            // Guardar archivo en la BD
             return archivoRepository.save(archivo);
             
         } catch (IOException e) {
@@ -105,17 +111,36 @@ public class ArchivoServiceImpl implements ArchivoService {
         }
     }
 
-    private Categoria mapearCategoria(String categoriaIA) {
-        if (categoriaIA == null) return Categoria.OTROS;
+    private String convertirFormatoFecha(String fecha) {
+        // Detectar formato de la fecha (dd/mm/yyyy, yyyy-mm-dd, etc.)
+        // y convertir a formato yyyy-MM-dd para SQL Date
         
-        switch (categoriaIA.toUpperCase()) {
-            case "FACTURAS": return Categoria.FACTURAS;
-            case "RECIBOS": return Categoria.RECIBOS;
-            case "SEGUROS": return Categoria.SEGUROS;
-            case "VEHICULO": return Categoria.VEHICULO;
-            case "SALUD": return Categoria.SALUD;
-            default: return Categoria.OTROS;
+        if (fecha.matches("\\d{2}[/]\\d{2}[/]\\d{4}")) {
+            // Formato dd/mm/yyyy
+            String[] partes = fecha.split("/");
+            return partes[2] + "-" + partes[1] + "-" + partes[0];
+        } else if (fecha.matches("\\d{2}[-]\\d{2}[-]\\d{4}")) {
+            // Formato dd-mm-yyyy
+            String[] partes = fecha.split("-");
+            return partes[2] + "-" + partes[1] + "-" + partes[0];
         }
+        
+        // Asumir que ya está en formato yyyy-MM-dd o similar
+        return fecha;
+    }
+
+    private Categoria determinarCategoria(String carpeta) {
+        if (carpeta == null) return Categoria.OTROS;
+        
+        carpeta = carpeta.toLowerCase();
+        
+        if (carpeta.contains("factura")) return Categoria.FACTURAS;
+        if (carpeta.contains("recibo")) return Categoria.RECIBOS;
+        if (carpeta.contains("seguro")) return Categoria.SEGUROS;
+        if (carpeta.contains("vehiculo")) return Categoria.VEHICULO;
+        if (carpeta.contains("salud")) return Categoria.SALUD;
+        
+        return Categoria.OTROS;
     }
 
     @Override
@@ -131,14 +156,19 @@ public class ArchivoServiceImpl implements ArchivoService {
         dto.setEmailTitular(archivo.getEmailTitular());
         dto.setTelefonoTitular(archivo.getTelefonoTitular());
         dto.setDocumentoIdentidadTitular(archivo.getDocumentoIdentidadTitular());
-        dto.setCarpeta(archivo.getCarpeta());
+        
+        // Agregar información del directorio si existe
+        if (archivo.getDirectorio() != null) {
+            dto.setDirectorioId(archivo.getDirectorio().getId());
+            dto.setDirectorioNombre(archivo.getDirectorio().getNombre());
+        }
         
         // Campos específicos según el tipo
         if (archivo instanceof Comprobante) {
             Comprobante comp = (Comprobante) archivo;
             dto.setTipoArchivo("COMPROBANTE");
             dto.setMonto(comp.getMonto());
-            dto.setCategoria(comp.getTipoCategoria() != null ? comp.getTipoCategoria().toString() : null);
+            dto.setCategoria(comp.getTipoCategoria() != null ? comp.getTipoCategoria().toString() : null); // Corregido
             dto.setFechaCreacion(comp.getFechaCreacion());
         } else if (archivo instanceof Documento) {
             Documento doc = (Documento) archivo;
@@ -148,5 +178,10 @@ public class ArchivoServiceImpl implements ArchivoService {
         }
         
         return dto;
+    }
+
+    @Override
+    public Archivo saveArchivo(Archivo archivo) {
+        return archivoRepository.save(archivo);
     }
 }

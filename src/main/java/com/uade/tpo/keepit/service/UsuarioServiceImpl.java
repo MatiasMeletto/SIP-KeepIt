@@ -2,6 +2,8 @@ package com.uade.tpo.keepit.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.repository.UserRepository;
 import java.util.List;
@@ -44,5 +46,10 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Override
     public void deleteUsuario(Long usuarioId) {
         userRepository.deleteById(usuarioId);
+    }
+
+    @Override
+    public Optional<Usuario> findByEmail(String name) {
+        return userRepository.findByEmail(name);
     }
 }

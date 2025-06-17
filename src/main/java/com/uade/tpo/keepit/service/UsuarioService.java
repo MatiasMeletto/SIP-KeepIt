@@ -1,5 +1,6 @@
 package com.uade.tpo.keepit.service;
 
+import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Usuario;
 import java.util.List;
 import java.util.Optional;
@@ -16,4 +17,6 @@ public interface UsuarioService {
     Usuario updateUsuario(Usuario usuario);
     
     void deleteUsuario(Long usuarioId);
+
+    Optional<Usuario> findByEmail(String name);
 }

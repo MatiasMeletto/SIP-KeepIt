@@ -27,7 +27,8 @@ public class ArchivoDTO {
     private String documentoIdentidadTitular;
     
     // Campo de carpeta automática
-    private String carpeta;
+    private String directorioNombre;
+    private Long directorioId;
     
     // Campos específicos para Comprobante
     private Double monto;

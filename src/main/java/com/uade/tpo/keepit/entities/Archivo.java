@@ -54,6 +54,10 @@ public abstract class Archivo {
     @JoinColumn(name = "usuario_id", nullable = true)
     private Usuario usuario;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "directorio_id")
+    private Directorio directorio;
+
     public Archivo() {
     }
 

@@ -18,10 +18,7 @@ public interface ArchivoService {
     public Archivo createArchivo(MultipartFile file, Usuario user)
             throws ArchivoDuplicadoException;
 
-    public Archivo createArchivo(MultipartFile file, Usuario user, String nombreTitular, 
-                                String direccionTitular, String emailTitular, 
-                                String telefonoTitular, String documentoIdentidadTitular)
-            throws ArchivoDuplicadoException;
+    public Archivo saveArchivo(Archivo archivo);
 
     public ArchivoDTO toDto(Archivo archivo);
 }

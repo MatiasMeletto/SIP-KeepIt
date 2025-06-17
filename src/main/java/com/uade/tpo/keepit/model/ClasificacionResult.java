@@ -1,15 +1,19 @@
 package com.uade.tpo.keepit.model;
 
+import com.uade.tpo.keepit.entities.Directorio;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.List;
 
 @Data
+@NoArgsConstructor
 @AllArgsConstructor
 public class ClasificacionResult {
-    private String carpeta;           // "vehiculos/seguros", "comprobantes/facturas"
-    private String tipoArchivo;       // "DOCUMENTO" o "COMPROBANTE"
-    private Double monto;             // Para comprobantes
-    private java.sql.Date fechaVencimiento; // Para documentos
-    private java.sql.Date fechaCreacion;    // Para ambos
-    private String categoria;         // Para comprobantes (enum)
+    private boolean exitoso;
+    private String carpeta;
+    private String textoExtraido;
+    private Directorio directorio;
+    private ExtraccionAtributos atributos;
+    private List<String> camposFaltantes;
 }
