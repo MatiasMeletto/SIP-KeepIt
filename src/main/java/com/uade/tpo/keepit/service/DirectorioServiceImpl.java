@@ -1,12 +1,14 @@
 package com.uade.tpo.keepit.service;
 
 import com.uade.tpo.keepit.entities.Directorio;
+import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.repository.DirectorioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class DirectorioServiceImpl implements DirectorioService {
@@ -70,5 +72,43 @@ public class DirectorioServiceImpl implements DirectorioService {
                     .orElseThrow(() -> new RuntimeException("Directorio padre no encontrado"));
         }
         return crearOObtenerDirectorio(nombre, padre);
+    }
+    
+    // Implementación de los nuevos métodos
+    @Override
+    public Directorio guardarDirectorio(Directorio directorio) {
+        return directorioRepository.save(directorio);
+    }
+    
+    @Override
+    public List<Directorio> obtenerTodosPorUsuario(Usuario usuario) {
+        // Obtener directorios que tienen usuario nulo (compartidos) o el usuario especificado
+        return directorioRepository.findAll().stream()
+                .filter(dir -> dir.getUsuario() == null || 
+                       (dir.getUsuario() != null && 
+                        dir.getUsuario().getId().equals(usuario.getId())))
+                .collect(Collectors.toList());
+    }
+    
+    @Override
+    public Optional<Directorio> buscarPorId(Long id) {
+        return directorioRepository.findById(id);
+    }
+    
+    @Override
+    public boolean eliminarDirectorio(Long id) {
+        if (directorioRepository.existsById(id)) {
+            // Verificar que no tenga archivos
+            int cantidadArchivos = directorioRepository.countArchivosByDirectorioId(id);
+            if (cantidadArchivos > 0) {
+                // No eliminar si tiene archivos
+                return false;
+            }
+            
+            // Eliminar solo si no tiene archivos
+            directorioRepository.deleteById(id);
+            return true;
+        }
+        return false;
     }
 }

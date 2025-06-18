@@ -30,6 +30,9 @@ public class ArchivoDTO {
     private String directorioNombre;
     private Long directorioId;
     
+    // Tipo de archivo (para saber si es Documento o Comprobante O Factura)
+    private String tipoArchivo;
+    
     // Campos específicos para Comprobante
     private Double monto;
     private String categoria;
@@ -39,6 +42,9 @@ public class ArchivoDTO {
     private Date fechaSubida;
     private Date fechaVencimiento;
     
-    // Tipo de archivo (para saber si es Documento o Comprobante)
-    private String tipoArchivo;
+    // ===== AGREGAR ESTOS CAMPOS PARA FACTURA =====
+    private String numeroFactura;
+    private Date fechaEmision;
+    private String emisor;
+    private String tipoFactura;
 }

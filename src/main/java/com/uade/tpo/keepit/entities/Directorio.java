@@ -21,6 +21,10 @@ public class Directorio {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "padre_id")
     private Directorio padre;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_id")
+    private Usuario usuario;
     
     @OneToMany(mappedBy = "padre", cascade = CascadeType.ALL)
     private List<Directorio> subdirectorios = new ArrayList<>();

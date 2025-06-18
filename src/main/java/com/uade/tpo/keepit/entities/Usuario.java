@@ -40,7 +40,8 @@ public class Usuario implements UserDetails{
 
     @OneToMany(mappedBy = "usuario")
     private List<Archivo> archivos;
-
+    @OneToMany(mappedBy = "usuario")
+    private List<Directorio> directorios;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

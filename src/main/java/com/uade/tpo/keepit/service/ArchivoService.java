@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.uade.tpo.keepit.DTO.ArchivoDTO;
+import com.uade.tpo.keepit.DTO.ClasificacionCompletaDTO; // ✅ AGREGAR ESTE IMPORT
 import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.exceptions.ArchivoDuplicadoException;
@@ -21,4 +22,10 @@ public interface ArchivoService {
     public Archivo saveArchivo(Archivo archivo);
 
     public ArchivoDTO toDto(Archivo archivo);
+
+    // Métodos adicionales necesarios
+    List<ArchivoDTO> obtenerArchivosPorUsuario(Usuario usuario);
+    Optional<Archivo> obtenerArchivoByIdYUsuario(Long archivoId, Usuario usuario);
+    Archivo crearArchivoDesdeClasificacion(ClasificacionCompletaDTO clasificacion, Usuario usuario);
+    boolean eliminarArchivo(Long archivoId, Usuario usuario);
 }
