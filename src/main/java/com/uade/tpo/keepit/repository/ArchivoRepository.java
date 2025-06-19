@@ -11,6 +11,7 @@ import com.uade.tpo.keepit.entities.Usuario;
 
 @Repository
 public interface ArchivoRepository extends JpaRepository<Archivo, Long> {
-	List<Archivo> findByUsuarioAndEliminadoFalse(Usuario usuario);
-	Optional<Archivo> findByIdAndUsuarioAndEliminadoFalse(Long id, Usuario usuario);
+    List<Archivo> findByUsuarioAndEliminadoFalse(Usuario usuario);
+    Optional<Archivo> findByIdAndUsuarioAndEliminadoFalse(Long id, Usuario usuario);
+    List<Archivo> findByNombreAndUsuarioAndEliminadoFalse(String nombre, Usuario usuario);
 }

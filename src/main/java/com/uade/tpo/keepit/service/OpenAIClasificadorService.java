@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.cloud.vision.v1.*;
 import com.google.protobuf.ByteString;
 import com.uade.tpo.keepit.DTO.ClasificacionCompletaDTO;
+import com.uade.tpo.keepit.DTO.DirectorioDTO;
+import com.uade.tpo.keepit.DTO.OrganizacionDirectoriosDTO;
 import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Directorio;
 import com.uade.tpo.keepit.entities.Usuario;
@@ -20,7 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.api.gax.core.FixedCredentialsProvider;
-import com.google.cloud.vision.v1.ImageAnnotatorSettings;
+
 import java.io.FileInputStream;
 import java.io.InputStream;
 
@@ -28,9 +30,13 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class OpenAIClasificadorService {
+
+    private static final Logger logger = LoggerFactory.getLogger(OpenAIClasificadorService.class);
 
     @Value("${openai.api.key}")
     private String apiKey;
@@ -144,14 +150,33 @@ public class OpenAIClasificadorService {
      */
     public Map<String, Object> sugerirOrganizacion(ClasificacionCompletaDTO clasificacion, Usuario usuario) {
         try {
-            // 1. Obtener estructura de directorios del usuario
-            Map<String, Object> estructuraDirectorios = obtenerEstructuraDirectorios(usuario);
+            // 1. Obtener lista de directorios del usuario en formato DTO para la IA
+            List<DirectorioDTO> estructuraDirectorios = directorioService.obtenerDirectoriosParaIA(usuario);
             
-            // 2. Llamar al Assistant de Document Organizer
-            JsonNode respuestaOrganizacion = llamarDocumentOrganizer(clasificacion, estructuraDirectorios);
+            // 2. Crear el objeto de entrada para la IA según el formato especificado en el prompt
+            Map<String, Object> entradaIA = new HashMap<>();
+            entradaIA.put("nombre", clasificacion.getNombre());
+            entradaIA.put("tipoExtension", clasificacion.getTipoExtension());
+            entradaIA.put("resumen", clasificacion.getResumen());
+            entradaIA.put("nombreTitular", clasificacion.getNombreTitular());
+            entradaIA.put("emisor", clasificacion.getEmisor());
+            entradaIA.put("tipoArchivoDetectado", clasificacion.getTipoArchivoDetectado());
             
-            // 3. Sincronizar estructura de directorios según la respuesta
-            Map<String, Object> resultadoFinal = sincronizarDirectorios(respuestaOrganizacion, usuario);
+            if (clasificacion.getFechaEmision() != null) {
+                entradaIA.put("fechaEmision", clasificacion.getFechaEmision().toString());
+            }
+            
+            // Agregar los directorios
+            entradaIA.put("directorios", estructuraDirectorios);
+            
+            // 3. Llamar al Assistant de Document Organizer
+            JsonNode respuestaJson = llamarDocumentOrganizer(entradaIA);
+            
+            // 4. Convertir respuesta a DTO
+            OrganizacionDirectoriosDTO organizacionDTO = procesarRespuestaOrganizador(respuestaJson);
+            
+            // 5. Sincronizar estructura de directorios según la respuesta
+            Map<String, Object> resultadoFinal = directorioService.sincronizarDirectorios(organizacionDTO, usuario);
             
             return resultadoFinal;
             
@@ -219,7 +244,6 @@ public class OpenAIClasificadorService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiKey);
         
-        // Construir el cuerpo del mensaje - IMPORTANTE: incluir la palabra "json" en el mensaje
         String mensajeContenido = "Analiza el siguiente texto extraído por OCR y clasifica el documento. " + 
                              "Responde con un objeto JSON con los siguientes campos cuando sea posible: " +
                              "tipoArchivoDetectado, resumen, nombreTitular, emisor, numeroFactura, monto, fechaEmision.\n\n" + 
@@ -238,7 +262,6 @@ public class OpenAIClasificadorService {
         requestBody.put("model", "gpt-4o");
         requestBody.put("messages", Collections.singletonList(message));
         requestBody.put("temperature", 0.1);
-        // Especificar que queremos una respuesta en formato JSON
         requestBody.put("response_format", Map.of("type", "json_object"));
     
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
@@ -291,92 +314,156 @@ public class OpenAIClasificadorService {
     /**
      * Llama al OpenAI Document Organizer Assistant
      */
-    private JsonNode llamarDocumentOrganizer(ClasificacionCompletaDTO clasificacion, Map<String, Object> directorios) throws Exception {
+    private JsonNode llamarDocumentOrganizer(Map<String, Object> datos) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiKey);
+        // Agregar el header necesario para Assistants API
+        headers.add("OpenAI-Beta", "assistants=v2");
         
-        // Construir el mensaje con información del documento y estructura de directorios
-        // IMPORTANTE: Incluir la palabra "json" en el mensaje
-        StringBuilder mensajeBuilder = new StringBuilder();
-        mensajeBuilder.append("Necesito organizar este documento. Responde con un objeto JSON con los campos 'directorios' y 'explicacion':\n");
-        mensajeBuilder.append("Nombre: ").append(clasificacion.getNombre()).append("\n");
-        mensajeBuilder.append("Tipo: ").append(clasificacion.getTipoArchivoDetectado()).append("\n");
-        mensajeBuilder.append("Resumen: ").append(clasificacion.getResumen()).append("\n");
+        // Convertir el mapa de datos a JSON
+        String datosJson = objectMapper.writeValueAsString(datos);
         
-        if (clasificacion.getEmisor() != null) {
-            mensajeBuilder.append("Emisor: ").append(clasificacion.getEmisor()).append("\n");
-        }
+        // 1. Crear un thread
+        Map<String, Object> threadRequest = new HashMap<>();
+        HttpEntity<Map<String, Object>> threadEntity = new HttpEntity<>(threadRequest, headers);
+        ResponseEntity<String> threadResponse = restTemplate.postForEntity(
+            "https://api.openai.com/v1/threads",
+            threadEntity,
+            String.class
+        );
+        String threadId = objectMapper.readTree(threadResponse.getBody()).get("id").asText();
         
-        if (clasificacion.getNombreTitular() != null) {
-            mensajeBuilder.append("Titular: ").append(clasificacion.getNombreTitular()).append("\n");
-        }
+        // 2. Añadir mensaje al thread
+        Map<String, Object> messageRequest = new HashMap<>();
+        messageRequest.put("role", "user");
+        messageRequest.put("content", datosJson); // Solo enviamos el JSON, sin instrucciones
         
-        if (clasificacion.getMonto() != null) {
-            mensajeBuilder.append("Monto: ").append(clasificacion.getMonto()).append("\n");
-        }
+        HttpEntity<Map<String, Object>> messageEntity = new HttpEntity<>(messageRequest, headers);
+        restTemplate.postForEntity(
+            "https://api.openai.com/v1/threads/" + threadId + "/messages",
+            messageEntity,
+            String.class
+        );
         
-        mensajeBuilder.append("\nEstructura de directorios actual:\n");
-        mensajeBuilder.append(objectMapper.writeValueAsString(directorios));
-        mensajeBuilder.append("\n\nPor favor, proporciona tu recomendación en formato JSON con la estructura de directorios.");
+        // 3. Ejecutar el assistant
+        Map<String, Object> runRequest = new HashMap<>();
+        runRequest.put("assistant_id", documentOrganizerAssistantId);
         
-        // Preparar cuerpo de la solicitud
-        Map<String, Object> message = new HashMap<>();
-        message.put("role", "user");
-        message.put("content", mensajeBuilder.toString());
-    
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", "gpt-4o");
-        requestBody.put("messages", Collections.singletonList(message));
-        requestBody.put("temperature", 0.1);
-        requestBody.put("response_format", Map.of("type", "json_object"));
-    
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-    
-        try {
-            System.out.println("Enviando solicitud a OpenAI API para organización...");
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                apiUrl,
-                request, 
+        HttpEntity<Map<String, Object>> runEntity = new HttpEntity<>(runRequest, headers);
+        ResponseEntity<String> runResponse = restTemplate.postForEntity(
+            "https://api.openai.com/v1/threads/" + threadId + "/runs",
+            runEntity,
+            String.class
+        );
+        
+        String runId = objectMapper.readTree(runResponse.getBody()).get("id").asText();
+        
+        // 4. Esperar a que termine el run
+        String status = "queued";
+        while (!status.equals("completed")) {
+            Thread.sleep(1000); // Esperar 1 segundo
+            ResponseEntity<String> statusResponse = restTemplate.exchange(
+                "https://api.openai.com/v1/threads/" + threadId + "/runs/" + runId,
+                HttpMethod.GET,
+                new HttpEntity<>(headers),
                 String.class
             );
             
-            System.out.println("Respuesta de OpenAI Organizer: " + response.getBody());
-            
-            if (response.getStatusCode() == HttpStatus.OK) {
-                // Extraer el contenido del mensaje de respuesta
-                JsonNode responseNode = objectMapper.readTree(response.getBody());
-                String responseContent = responseNode.path("choices").path(0).path("message").path("content").asText();
-                
-                // Intentar parsear la respuesta como JSON
-                try {
-                    return objectMapper.readTree(responseContent);
-                } catch (Exception e) {
-                    System.err.println("Error al parsear respuesta como JSON: " + e.getMessage());
-                    
-                    // Crear una estructura básica por defecto
-                    ObjectNode defaultNode = objectMapper.createObjectNode();
-                    ObjectNode directorios_node = objectMapper.createObjectNode();
-                    defaultNode.set("directorios", directorios_node);
-                    defaultNode.put("explicacion", "No se pudo procesar la organización. Se sugiere ubicar el archivo en su directorio actual.");
-                    
-                    return defaultNode;
-                }
-            } else {
-                throw new RuntimeException("Error en la respuesta de OpenAI: " + response.getStatusCode());
+            status = objectMapper.readTree(statusResponse.getBody()).get("status").asText();
+            if (status.equals("failed") || status.equals("cancelled")) {
+                throw new RuntimeException("Run failed with status: " + status);
             }
-        } catch (Exception e) {
-            System.err.println("Error al llamar a OpenAI API Organizer: " + e.getMessage());
-            e.printStackTrace();
-            
-            // Devolver un objeto JSON por defecto en caso de error
-            ObjectNode defaultNode = objectMapper.createObjectNode();
-            ObjectNode directorios_node = objectMapper.createObjectNode();
-            defaultNode.set("directorios", directorios_node);
-            defaultNode.put("explicacion", "No se pudo procesar la organización debido a un error: " + e.getMessage());
-            
-            return defaultNode;
         }
+        
+        // 5. Obtener mensajes
+        ResponseEntity<String> messagesResponse = restTemplate.exchange(
+            "https://api.openai.com/v1/threads/" + threadId + "/messages",
+            HttpMethod.GET,
+            new HttpEntity<>(headers),
+            String.class
+        );
+        
+        // Obtener el último mensaje del assistant
+        JsonNode messages = objectMapper.readTree(messagesResponse.getBody()).get("data");
+        String content = "";
+        
+        for (JsonNode message : messages) {
+            if (message.get("role").asText().equals("assistant")) {
+                content = message.get("content").get(0).get("text").get("value").asText();
+                break;
+            }
+        }
+        
+        // NUEVO: Extraer el JSON del bloque de código
+        if (content.startsWith("```")) {
+            // Extraer el contenido dentro del bloque de código
+            int startIndex = content.indexOf('\n');
+            if (startIndex != -1) {
+                int endIndex = content.lastIndexOf("```");
+                if (endIndex != -1) {
+                    content = content.substring(startIndex + 1, endIndex).trim();
+                }
+            }
+        }
+
+        // Para debugging
+        System.out.println("CONTENIDO JSON EXTRAÍDO: " + content);
+        
+        // Ahora parsear el JSON limpio
+        return objectMapper.readTree(content);
+    }
+    
+    /**
+     * Procesa la respuesta JSON del organizador y la convierte a DTO
+     */
+    private OrganizacionDirectoriosDTO procesarRespuestaOrganizador(JsonNode respuestaJson) {
+        OrganizacionDirectoriosDTO dto = new OrganizacionDirectoriosDTO();
+        
+        // Extraer explicación
+        if (respuestaJson.has("explicacion")) {
+            dto.setExplicacion(respuestaJson.get("explicacion").asText());
+        } else {
+            dto.setExplicacion("No se proporcionó explicación");
+        }
+        
+        // Extraer directorios
+        List<DirectorioDTO> directorios = new ArrayList<>();
+        
+        if (respuestaJson.has("directorios") && respuestaJson.get("directorios").isArray()) {
+            JsonNode directoriosNode = respuestaJson.get("directorios");
+            
+            for (JsonNode dirNode : directoriosNode) {
+                DirectorioDTO dirDTO = new DirectorioDTO();
+                
+                if (dirNode.has("id_directorio")) {
+                    dirDTO.setId_directorio(dirNode.get("id_directorio").asText());
+                }
+                
+                if (dirNode.has("nombre")) {
+                    dirDTO.setNombre(dirNode.get("nombre").asText());
+                }
+                
+                if (dirNode.has("id_directorio_padre")) {
+                    JsonNode padreNode = dirNode.get("id_directorio_padre");
+                    dirDTO.setId_directorio_padre(padreNode.isNull() ? null : padreNode.asText());
+                }
+                
+                // Extraer archivos
+                List<String> archivos = new ArrayList<>();
+                if (dirNode.has("archivos") && dirNode.get("archivos").isArray()) {
+                    for (JsonNode archivoNode : dirNode.get("archivos")) {
+                        archivos.add(archivoNode.asText());
+                    }
+                }
+                dirDTO.setArchivos(archivos);
+                
+                directorios.add(dirDTO);
+            }
+        }
+        
+        dto.setDirectorios(directorios);
+        return dto;
     }
     
     /**
@@ -425,277 +512,6 @@ public class OpenAIClasificadorService {
         }
         
         return dto;
-    }
-    
-    /**
-     * Obtiene la estructura de directorios para un usuario
-     */
-    private Map<String, Object> obtenerEstructuraDirectorios(Usuario usuario) {
-        // Obtener todos los directorios del usuario
-        List<Directorio> directorios = directorioRepository.findAllByUsuarioId(usuario.getId());
-        
-        // Crear mapa de estructura de directorios según formato esperado por el Assistant
-        Map<String, Object> directorioMap = new HashMap<>();
-        
-        // Convertir cada directorio al formato requerido
-        for (Directorio dir : directorios) {
-            Map<String, Object> dirInfo = new HashMap<>();
-            
-            // ID del directorio padre (null si es raíz)
-            if (dir.getPadre() != null) {
-                dirInfo.put("id_directorio_padre", dir.getPadre().getId().toString());
-            } else {
-                dirInfo.put("id_directorio_padre", "null");
-            }
-            
-            // Lista de archivos
-            List<String> archivos = dir.getArchivos() != null ?
-                dir.getArchivos().stream()
-                    .filter(archivo -> !archivo.getEliminado())
-                    .map(archivo -> archivo.getNombre())
-                    .collect(Collectors.toList()) :
-                new ArrayList<>();
-                
-            dirInfo.put("archivos", archivos);
-            
-            // Nombre del directorio (información adicional útil)
-            dirInfo.put("nombre", dir.getNombre());
-            
-            // Agregar al mapa principal usando el ID como clave
-            directorioMap.put(dir.getId().toString(), dirInfo);
-        }
-        
-        return directorioMap;
-    }
-    
-    /**
-     * Sincroniza la estructura de directorios según la respuesta del assistant
-     */
-    private Map<String, Object> sincronizarDirectorios(JsonNode respuestaJson, Usuario usuario) {
-        Map<String, Object> resultado = new HashMap<>();
-        
-        // Verificar que existe el nodo "directorios" en la respuesta
-        if (!respuestaJson.has("directorios")) {
-            throw new RuntimeException("La respuesta del assistant no contiene el campo 'directorios'");
-        }
-        
-        // Obtener el nodo de directorios y la explicación
-        JsonNode directoriosNode = respuestaJson.get("directorios");
-        String explicacion = getStringValue(respuestaJson, "explicacion");
-        
-        // Convertir la respuesta a un mapa
-        Map<String, Map<String, Object>> directoriosSugeridos = new HashMap<>();
-        
-        // Iterar todos los directorios en la respuesta
-        directoriosNode.fields().forEachRemaining(entry -> {
-            String dirId = entry.getKey();
-            JsonNode dirInfo = entry.getValue();
-            
-            Map<String, Object> infoMap = new HashMap<>();
-            
-            // ID del padre
-            if (dirInfo.has("id_directorio_padre")) {
-                String padreId = dirInfo.get("id_directorio_padre").asText();
-                infoMap.put("id_directorio_padre", "null".equals(padreId) ? null : padreId);
-            } else {
-                infoMap.put("id_directorio_padre", null);
-            }
-            
-            // Nombre del directorio (si está presente)
-            if (dirInfo.has("nombre")) {
-                infoMap.put("nombre", dirInfo.get("nombre").asText());
-            }
-            
-            // Archivos
-            List<String> archivos = new ArrayList<>();
-            if (dirInfo.has("archivos") && dirInfo.get("archivos").isArray()) {
-                dirInfo.get("archivos").forEach(archivo -> archivos.add(archivo.asText()));
-            }
-            infoMap.put("archivos", archivos);
-            
-            // Agregar al mapa de directorios sugeridos
-            directoriosSugeridos.put(dirId, infoMap);
-        });
-        
-        // 1. Obtener la estructura actual de directorios del usuario
-        List<Directorio> directoriosActuales = directorioRepository.findAllByUsuarioId(usuario.getId());
-        Map<String, Directorio> mapDirectoriosActuales = directoriosActuales.stream()
-                .collect(Collectors.toMap(d -> d.getId().toString(), d -> d));
-        
-        // 2. Comparar y actualizar directorios
-        
-        // 2.1 Eliminar directorios que no estén en la estructura sugerida (solo los vacíos)
-        List<String> idsActuales = new ArrayList<>(mapDirectoriosActuales.keySet());
-        List<String> idsSugeridos = new ArrayList<>(directoriosSugeridos.keySet());
-        
-        // Directorios a eliminar: los que están en actuales pero no en sugeridos
-        for (String idActual : idsActuales) {
-            if (!idsSugeridos.contains(idActual)) {
-                Directorio directorio = mapDirectoriosActuales.get(idActual);
-                
-                // Solo eliminar si no tiene archivos
-                if (directorio.getArchivos() == null || directorio.getArchivos().isEmpty()) {
-                    try {
-                        directorioRepository.delete(directorio);
-                        System.out.println("Directorio eliminado: " + directorio.getId() + " - " + directorio.getNombre());
-                    } catch (Exception e) {
-                        // Si da error, probablemente tiene referencias, ignoramos
-                        System.err.println("Error al eliminar directorio " + directorio.getId() + ": " + e.getMessage());
-                    }
-                }
-            }
-        }
-        
-        // 2.2 Crear o actualizar directorios según la estructura sugerida
-        Map<String, Directorio> directoriosActualizados = new HashMap<>();
-        
-        // Primera pasada: crear directorios que faltan
-        for (String idSugerido : idsSugeridos) {
-            Map<String, Object> infoSugerida = directoriosSugeridos.get(idSugerido);
-            
-            if (!mapDirectoriosActuales.containsKey(idSugerido)) {
-                // Crear directorio nuevo
-                Directorio nuevoDirect = new Directorio();
-                
-                // Si el ID es numérico, intentar usarlo
-                try {
-                    Long idNuevo = Long.parseLong(idSugerido);
-                    nuevoDirect.setId(idNuevo);
-                } catch (NumberFormatException e) {
-                    // El ID no es numérico, se asignará uno automáticamente
-                }
-                
-                // Asignar nombre del directorio si está presente
-                if (infoSugerida.containsKey("nombre")) {
-                    nuevoDirect.setNombre((String) infoSugerida.get("nombre"));
-                } else {
-                    nuevoDirect.setNombre("Nuevo_" + idSugerido);
-                }
-                
-                nuevoDirect.setUsuario(usuario);
-                
-                // El padre se asignará en la segunda pasada
-                Directorio guardado = directorioRepository.save(nuevoDirect);
-                directoriosActualizados.put(idSugerido, guardado);
-                System.out.println("Directorio creado: " + guardado.getId() + " - " + guardado.getNombre());
-            } else {
-                // Mantener el directorio existente para actualización
-                Directorio existente = mapDirectoriosActuales.get(idSugerido);
-                
-                // Actualizar nombre si cambió
-                if (infoSugerida.containsKey("nombre") && 
-                    !existente.getNombre().equals(infoSugerida.get("nombre"))) {
-                    
-                    existente.setNombre((String) infoSugerida.get("nombre"));
-                    existente = directorioRepository.save(existente);
-                    System.out.println("Nombre actualizado para directorio " + existente.getId() + 
-                                       ": " + existente.getNombre());
-                }
-                
-                directoriosActualizados.put(idSugerido, existente);
-            }
-        }
-        
-        // Segunda pasada: actualizar relaciones padre-hijo
-        for (String idSugerido : idsSugeridos) {
-            Directorio directorio = directoriosActualizados.get(idSugerido);
-            Map<String, Object> infoSugerida = directoriosSugeridos.get(idSugerido);
-            
-            if (directorio != null) {
-                // Obtener el ID del padre
-                String idPadre = (String) infoSugerida.get("id_directorio_padre");
-                
-                // Actualizar padre si es necesario
-                if (idPadre != null && !"null".equals(idPadre)) {
-                    Directorio padre = directoriosActualizados.getOrDefault(
-                            idPadre, mapDirectoriosActuales.get(idPadre));
-                    
-                    // Verificar si el padre ha cambiado
-                    boolean cambiarPadre = false;
-                    
-                    if (padre != null) {
-                        if (directorio.getPadre() == null) {
-                            cambiarPadre = true;
-                        } else if (!padre.getId().equals(directorio.getPadre().getId())) {
-                            cambiarPadre = true;
-                        }
-                        
-                        if (cambiarPadre) {
-                            directorio.setPadre(padre);
-                            directorio = directorioRepository.save(directorio);
-                            System.out.println("Actualizado padre de directorio " + directorio.getId() + 
-                                    " a " + padre.getId() + " (" + padre.getNombre() + ")");
-                        }
-                    }
-                } else if (directorio.getPadre() != null) {
-                    // Establecer a nulo si antes tenía un padre y ahora no debe tenerlo
-                    directorio.setPadre(null);
-                    directorio = directorioRepository.save(directorio);
-                    System.out.println("Directorio " + directorio.getId() + " movido a raíz");
-                }
-            }
-        }
-        
-        // 3. Preparar respuesta
-        // Convertimos la estructura actualizada a formato de respuesta
-        Map<String, Object> directoriosRespuesta = new HashMap<>();
-        
-        // Obtener los directorios actualizados después de todas las operaciones
-        List<Directorio> directoriosFinal = directorioRepository.findAllByUsuarioId(usuario.getId());
-        
-        for (Directorio dir : directoriosFinal) {
-            Map<String, Object> dirInfo = new HashMap<>();
-            
-            // Información del padre
-            if (dir.getPadre() != null) {
-                dirInfo.put("id_directorio_padre", dir.getPadre().getId().toString());
-            } else {
-                dirInfo.put("id_directorio_padre", "null");
-            }
-            
-            // Nombre
-            dirInfo.put("nombre", dir.getNombre());
-            
-            // Archivos
-            List<String> archivos = dir.getArchivos() != null ?
-                dir.getArchivos().stream()
-                    .filter(archivo -> !archivo.getEliminado())
-                    .map(archivo -> archivo.getNombre())
-                    .collect(Collectors.toList()) :
-                new ArrayList<>();
-                
-            dirInfo.put("archivos", archivos);
-            
-            // Agregar al mapa de directorios
-            directoriosRespuesta.put(dir.getId().toString(), dirInfo);
-        }
-        
-        resultado.put("directorios", directoriosRespuesta);
-        resultado.put("explicacion", explicacion);
-        resultado.put("directoriosActualizados", directoriosFinal.stream()
-                .map(this::mapDirectorioParaRespuesta)
-                .collect(Collectors.toList()));
-        
-        return resultado;
-    }
-    
-    /**
-     * Mapea un directorio a un formato simplificado para la respuesta
-     */
-    private Map<String, Object> mapDirectorioParaRespuesta(Directorio directorio) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", directorio.getId());
-        map.put("nombre", directorio.getNombre());
-        
-        if (directorio.getPadre() != null) {
-            map.put("padreId", directorio.getPadre().getId());
-            map.put("padreNombre", directorio.getPadre().getNombre());
-        } else {
-            map.put("padreId", null);
-            map.put("padreNombre", null);
-        }
-        
-        return map;
     }
     
     /**

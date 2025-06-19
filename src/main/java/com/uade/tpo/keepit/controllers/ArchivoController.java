@@ -85,9 +85,11 @@ public class ArchivoController {
                         .filename(arch.getNombre())
                         .build());
 
+                // Convertir el contenido (String) a byte[]
+                byte[] contenidoBytes = arch.getContenido().getBytes(java.nio.charset.StandardCharsets.UTF_8);
                 return ResponseEntity.ok()
                         .headers(headers)
-                        .body(arch.getContenido());
+                        .body(contenidoBytes);
             }
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
@@ -133,11 +135,12 @@ public class ArchivoController {
     
     /**
      * ENDPOINT 2: Organiza directorios según la clasificación utilizando el Document Organizer
-     * y sincroniza los directorios según la estructura recomendada
+     * y sincroniza los directorios según la estructura recomendada.
+     * Opcionalmente guarda el archivo en el directorio recomendado si guardar=true.
      */
     @PostMapping("/organizar")
     public ResponseEntity<?> organizarDocumento(@RequestBody ClasificacionCompletaDTO clasificacion, 
-                                              @RequestParam(required = false, defaultValue = "false") Boolean guardar,
+                                              @RequestParam(required = false, defaultValue = "true") Boolean guardar,
                                               Authentication authentication) {
         try {
             Usuario usuario = (Usuario) authentication.getPrincipal();
@@ -147,21 +150,45 @@ public class ArchivoController {
                         .body(Map.of("error", "Faltan datos del archivo"));
             }
             
-            // Sugerir organización y sincronizar directorios
+            // CAMBIO 1: Utilizar el servicio de OpenAI para sugerir la organización
             Map<String, Object> resultado = openAIClasificadorService.sugerirOrganizacion(clasificacion, usuario);
             
-            // Si se solicitó guardar el archivo, hacerlo en el directorio adecuado
+            // CAMBIO 2: Si se debe guardar el archivo, encontramos el directorio recomendado y lo guardamos
             if (guardar) {
-                // Determinar el directorio más adecuado según la respuesta
-                // Obtener el ID del directorio donde se debería guardar el archivo
-                Long directorioId = encontrarDirectorioParaArchivo(resultado, clasificacion.getNombre());
+                // Obtener el directorio adecuado desde la respuesta de la IA
+                Long directorioId = null;
+                if (resultado.containsKey("directorioRecomendado")) {
+                    Map<String, Object> dirRecomendado = (Map<String, Object>) resultado.get("directorioRecomendado");
+                    if (dirRecomendado != null && dirRecomendado.containsKey("id")) {
+                        directorioId = ((Number) dirRecomendado.get("id")).longValue();
+                    }
+                }
                 
+                // Si no tenemos directorio recomendado, buscamos por tipo de archivo (fallback)
+                if (directorioId == null) {
+                    Directorio directorioSeleccionado = null;
+                    
+                    switch (clasificacion.getTipoArchivoDetectado()) {
+                        case "FACTURA":
+                            directorioSeleccionado = directorioService.obtenerPorNombre("Facturas", usuario);
+                            break;
+                        case "COMPROBANTE":
+                            directorioSeleccionado = directorioService.obtenerPorNombre("Comprobantes", usuario);
+                            break;
+                        default:
+                            directorioSeleccionado = directorioService.obtenerPorNombre("Documentos", usuario);
+                    }
+                    
+                    if (directorioSeleccionado != null) {
+                        directorioId = directorioSeleccionado.getId();
+                    }
+                }
+                
+                // Guardar el archivo en el directorio seleccionado
                 if (directorioId != null) {
-                    // Guardar el archivo en el directorio seleccionado
                     clasificacion.setDirectorioId(directorioId);
                     Archivo archivoCreado = archivoService.crearArchivoDesdeClasificacion(clasificacion, usuario);
                     
-                    // Agregar información del archivo guardado a la respuesta
                     resultado.put("archivoGuardado", archivoService.toDto(archivoCreado));
                 }
             }
@@ -169,103 +196,9 @@ public class ArchivoController {
             return ResponseEntity.ok(resultado);
             
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error al organizar documento: " + e.getMessage()));
         }
-    }
-    
-    /**
-     * ENDPOINT 3: Guarda directamente un archivo clasificado en un directorio específico
-     */
-    @PostMapping("/guardar")
-    public ResponseEntity<?> guardarArchivo(@RequestBody ClasificacionCompletaDTO clasificacion, 
-                                          @RequestParam Long directorioId,
-                                          Authentication authentication) {
-        try {
-            Usuario usuario = (Usuario) authentication.getPrincipal();
-            
-            if (clasificacion.getContenidoArchivo() == null || clasificacion.getNombre() == null) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "Faltan datos del archivo"));
-            }
-            
-            // Verificar que el directorio existe y pertenece al usuario
-            Optional<Directorio> directorio = directorioService.obtenerPorId(directorioId);
-            if (directorio.isEmpty() || (directorio.get().getUsuario() != null && 
-                                       !directorio.get().getUsuario().getId().equals(usuario.getId()))) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("error", "Directorio no válido o sin acceso"));
-            }
-            
-            // Guardar el archivo en el directorio especificado
-            clasificacion.setDirectorioId(directorioId);
-            Archivo archivoCreado = archivoService.crearArchivoDesdeClasificacion(clasificacion, usuario);
-            
-            return ResponseEntity.status(HttpStatus.CREATED).body(archivoService.toDto(archivoCreado));
-            
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al guardar archivo: " + e.getMessage()));
-        }
-    }
-    
-    /**
-     * Método auxiliar para encontrar el directorio donde debería guardarse un archivo
-     * según la respuesta del organizador
-     */
-    private Long encontrarDirectorioParaArchivo(Map<String, Object> resultado, String nombreArchivo) {
-        try {
-            // Obtener el mapa de directorios de la respuesta
-            Map<String, Object> directorios = (Map<String, Object>) resultado.get("directorios");
-            if (directorios == null || directorios.isEmpty()) {
-                return null;
-            }
-            
-            // Buscar el directorio que contiene el archivo en su lista
-            for (Map.Entry<String, Object> entry : directorios.entrySet()) {
-                String dirId = entry.getKey();
-                Map<String, Object> dirInfo = (Map<String, Object>) entry.getValue();
-                
-                // Verificar la lista de archivos
-                List<String> archivos = (List<String>) dirInfo.get("archivos");
-                if (archivos != null && archivos.contains(nombreArchivo)) {
-                    // Encontramos el directorio
-                    try {
-                        return Long.parseLong(dirId);
-                    } catch (NumberFormatException e) {
-                        // Si el ID no es numérico, buscar en los directorios actualizados
-                        List<Map<String, Object>> actualizados = 
-                            (List<Map<String, Object>>) resultado.get("directoriosActualizados");
-                            
-                        if (actualizados != null) {
-                            for (Map<String, Object> dir : actualizados) {
-                                if (dir.get("id").toString().equals(dirId)) {
-                                    return Long.parseLong(dir.get("id").toString());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Si no encontramos un directorio específico, devolver el primer directorio actualizado
-            List<Map<String, Object>> actualizados = 
-                (List<Map<String, Object>>) resultado.get("directoriosActualizados");
-                
-            if (actualizados != null && !actualizados.isEmpty()) {
-                return Long.parseLong(actualizados.get(0).get("id").toString());
-            }
-            
-            // Si no hay directorios actualizados, intentar con el primer directorio de la respuesta
-            if (!directorios.isEmpty()) {
-                String primerDirId = directorios.keySet().iterator().next();
-                return Long.parseLong(primerDirId);
-            }
-            
-        } catch (Exception e) {
-            System.err.println("Error buscando directorio para archivo: " + e.getMessage());
-        }
-        
-        return null;
     }
 }

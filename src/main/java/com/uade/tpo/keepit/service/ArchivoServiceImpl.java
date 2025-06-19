@@ -50,7 +50,7 @@ public class ArchivoServiceImpl implements ArchivoService {
             documento.setNombre(file.getOriginalFilename());
             documento.setTipoExtension(file.getContentType());
             documento.setTamanioBytes(file.getSize());
-            documento.setContenido(file.getBytes());
+            documento.setContenido(java.util.Base64.getEncoder().encodeToString(file.getBytes()));
             documento.setUsuario(user);
             documento.setEliminado(false);
             documento.setFechaSubida(new java.sql.Date(System.currentTimeMillis()));
@@ -110,7 +110,7 @@ public class ArchivoServiceImpl implements ArchivoService {
             }
             
             // Propiedades comunes
-            archivo.setNombre(clasificacion.getNombreArchivo());
+            archivo.setNombre(clasificacion.getNombre());
             archivo.setTipoExtension(clasificacion.getTipoExtension());
             archivo.setUsuario(usuario);
             archivo.setDirectorio(directorio);
@@ -120,10 +120,11 @@ public class ArchivoServiceImpl implements ArchivoService {
             archivo.setNombreTitular(clasificacion.getNombreTitular());
             archivo.setDocumentoIdentidadTitular(clasificacion.getDocumentoIdentidadTitular());
             
-            // Contenido del archivo
+            // Contenido del archivo con manejo correcto de Base64
             if (clasificacion.getContenidoArchivo() != null) {
-                archivo.setContenido(Base64.getDecoder().decode(clasificacion.getContenidoArchivo()));
-                archivo.setTamanioBytes((long) archivo.getContenido().length);
+                // No decodifiques, solo guarda el string
+                archivo.setContenido(clasificacion.getContenidoArchivo());
+                archivo.setTamanioBytes((long) clasificacion.getContenidoArchivo().length());
             }
             
             return archivoRepository.save(archivo);

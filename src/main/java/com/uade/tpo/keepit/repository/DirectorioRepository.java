@@ -20,10 +20,16 @@ public interface DirectorioRepository extends JpaRepository<Directorio, Long> {
 
     @Query("SELECT d FROM Directorio d WHERE d.usuario IS NULL OR d.usuario.id = :usuarioId")
     List<Directorio> findAllByUsuarioId(Long usuarioId);
-    
+
     @Query("SELECT d FROM Directorio d WHERE d.padre IS NULL")
     List<Directorio> findRootDirectories();
-    
+
     @Query("SELECT COUNT(a) FROM Archivo a WHERE a.directorio.id = :directorioId")
     int countArchivosByDirectorioId(Long directorioId);
+
+    @Query("SELECT d FROM Directorio d WHERE d.usuario.id = :usuarioId AND d.padre IS NULL")
+    List<Directorio> findByUsuarioIdAndPadreIsNull(Long usuarioId);
+
+    @Query("SELECT d FROM Directorio d WHERE d.nombre = :nombre AND d.padre IS NULL AND d.usuario IS NULL")
+    Optional<Directorio> findByNombreAndPadreIsNullAndUsuarioIsNull(String nombre);
 }

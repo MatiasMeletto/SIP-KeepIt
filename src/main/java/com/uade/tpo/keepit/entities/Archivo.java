@@ -5,7 +5,6 @@ import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.util.Base64;
 
 @Data
 @Inheritance(strategy = InheritanceType.JOINED)
@@ -20,8 +19,7 @@ public abstract class Archivo {
     private String nombre;
 
     @Lob
-    @Column(columnDefinition = "LONGBLOB")
-    private byte[] contenido;
+    private String contenido; // Ahora es un String Base64
 
     @Column(nullable = false)
     private String tipoExtension;
@@ -61,9 +59,10 @@ public abstract class Archivo {
     public Archivo() {
     }
 
+    // Constructor para MultipartFile (si lo usás en algún lado)
     public Archivo(MultipartFile archivo, Usuario user) throws IOException {
         this.nombre = archivo.getOriginalFilename();
-        this.contenido = archivo.getBytes();
+        this.contenido = java.util.Base64.getEncoder().encodeToString(archivo.getBytes());
         this.tamanioBytes = archivo.getSize();
         this.tipoExtension = archivo.getContentType();
         this.usuario = user;
@@ -72,7 +71,7 @@ public abstract class Archivo {
     public Archivo(MultipartFile archivo, Usuario user, String nombreTitular, String direccionTitular, 
                    String emailTitular, String telefonoTitular, String documentoIdentidadTitular) throws IOException {
         this.nombre = archivo.getOriginalFilename();
-        this.contenido = archivo.getBytes();
+        this.contenido = java.util.Base64.getEncoder().encodeToString(archivo.getBytes());
         this.tamanioBytes = archivo.getSize();
         this.tipoExtension = archivo.getContentType();
         this.usuario = user;
@@ -83,7 +82,6 @@ public abstract class Archivo {
         this.documentoIdentidadTitular = documentoIdentidadTitular;
     }
 
-    public String getContenidoBase64() {
-        return Base64.getEncoder().encodeToString(this.contenido);
-    }
+    // Elimina este método, ya no es necesario
+    // public String getContenidoBase64() { ... }
 }
