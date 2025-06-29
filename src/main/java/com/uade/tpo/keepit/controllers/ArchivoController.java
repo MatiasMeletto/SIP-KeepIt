@@ -24,6 +24,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+
 
 @RestController
 @RequestMapping("/api/archivos")
@@ -40,7 +47,7 @@ public class ArchivoController {
 
     // Mantener los endpoints existentes...
     @GetMapping
-    public ResponseEntity<List<ArchivoDTO>> obtenerArchivos(Authentication authentication) {
+    public ResponseEntity<List<ArchivoDTO>> obtenerArchivosPorUsuario(Authentication authentication) {
         try {
             Usuario usuario = (Usuario) authentication.getPrincipal();
             List<ArchivoDTO> archivos = archivoService.obtenerArchivosPorUsuario(usuario);
@@ -48,6 +55,12 @@ public class ArchivoController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+    @GetMapping("/vencimientosCercanos")
+    public ResponseEntity<List<ArchivoDTO>> getVencimientosCercanos() {
+        // Lógica para obtener archivos con vencimientos cercanos
+        List<ArchivoDTO> archivos = archivoService.getArchivosConVencimientosCercanos();
+        return ResponseEntity.ok(archivos);
     }
 
     @GetMapping("/{archivoId}")
@@ -199,6 +212,42 @@ public class ArchivoController {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error al organizar documento: " + e.getMessage()));
+        }
+    }
+    @PutMapping("/archivos/{id}")
+    public ResponseEntity<ArchivoDTO> actualizarArchivo(@PathVariable Long id, @RequestBody ClasificacionCompletaDTO archivoDTO, Authentication authentication) {
+        try {
+            Usuario usuario = (Usuario) authentication.getPrincipal();
+            Optional<Archivo> archivoOpt = archivoService.obtenerArchivoByIdYUsuario(id, usuario);
+
+            // revisar depues que se va a editar
+            if (archivoOpt.isPresent()) {
+                Archivo archivo = archivoOpt.get();
+                archivo.setNombre(archivoDTO.getNombre());
+                archivo.setTipoExtension(archivoDTO.getTipoExtension());
+                archivo.setTamanioBytes(archivoDTO.getTamanioBytes());
+                archivo.setContenido(archivoDTO.getContenidoArchivo());
+
+                ArchivoDTO actualizado = archivoService.actualizarArchivo(archivo);
+                return ResponseEntity.ok(actualizado);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    @DeleteMapping("/{archivoId}")
+    public ResponseEntity<?> eliminarArchivo(@PathVariable Long archivoId, Authentication authentication) {
+        try {
+            Usuario usuario = (Usuario) authentication.getPrincipal();
+            Archivo archivo = archivoService.obtenerArchivoByIdYUsuario(archivoId, usuario)
+                    .orElseThrow(() -> new RuntimeException("Archivo no encontrado"));
+            archivoService.eliminarArchivo(archivo);
+            return ResponseEntity.ok(Map.of("mensaje", "Archivo eliminado correctamente"));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error al eliminar archivo: " + e.getMessage()));
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.uade.tpo.keepit.service;
 
+import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -135,19 +136,6 @@ public class ArchivoServiceImpl implements ArchivoService {
     }
 
     @Override
-    public boolean eliminarArchivo(Long archivoId, Usuario usuario) {
-        Optional<Archivo> archivoOpt = archivoRepository.findByIdAndUsuarioAndEliminadoFalse(archivoId, usuario);
-        
-        if (archivoOpt.isPresent()) {
-            Archivo archivo = archivoOpt.get();
-            archivo.setEliminado(true);
-            archivoRepository.save(archivo);
-            return true;
-        }
-        return false;
-    }
-
-    @Override
     public ArchivoDTO toDto(Archivo archivo) {
         ArchivoDTO dto = new ArchivoDTO();
         dto.setId(archivo.getId());
@@ -190,5 +178,29 @@ public class ArchivoServiceImpl implements ArchivoService {
     @Override
     public Archivo saveArchivo(Archivo archivo) {
         return archivoRepository.save(archivo);
+    }
+
+    @Override
+    public Void eliminarArchivo(Archivo archivo) {
+        archivo.setEliminado(true);
+        archivoRepository.save(archivo);
+        return null;
+    }
+
+    @Override
+    public ArchivoDTO actualizarArchivo(Archivo archivo) {
+        Archivo actualizado = archivoRepository.save(archivo);
+        return toDto(actualizado);
+    }
+
+    @Override
+    public List<ArchivoDTO> getArchivosConVencimientosCercanos() {
+        List<Archivo> archivos = archivoRepository.findByFechaVencimientoBetween(
+                LocalDate.now(),
+                LocalDate.now().plusDays(7)
+        );
+        return archivos.stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 }

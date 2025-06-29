@@ -27,5 +27,10 @@ public interface ArchivoService {
     List<ArchivoDTO> obtenerArchivosPorUsuario(Usuario usuario);
     Optional<Archivo> obtenerArchivoByIdYUsuario(Long archivoId, Usuario usuario);
     Archivo crearArchivoDesdeClasificacion(ClasificacionCompletaDTO clasificacion, Usuario usuario);
-    boolean eliminarArchivo(Long archivoId, Usuario usuario);
+
+    public Void eliminarArchivo(Archivo archivo);
+    public ArchivoDTO actualizarArchivo(Archivo archivo)
+            throws ArchivoDuplicadoException;
+
+    public List<ArchivoDTO> getArchivosConVencimientosCercanos();
 }

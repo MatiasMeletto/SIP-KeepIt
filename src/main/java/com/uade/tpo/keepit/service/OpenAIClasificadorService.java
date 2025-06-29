@@ -465,65 +465,6 @@ public class OpenAIClasificadorService {
         dto.setDirectorios(directorios);
         return dto;
     }
-    
-    /**
-     * Crea un DTO desde la respuesta del reconocimiento
-     */
-    private ClasificacionCompletaDTO crearDTODesdeReconocimiento(JsonNode jsonNode, MultipartFile file) throws Exception {
-        ClasificacionCompletaDTO dto = new ClasificacionCompletaDTO();
-        
-        // Campos básicos del archivo
-        dto.setNombre(file.getOriginalFilename());
-        dto.setTipoExtension(file.getContentType());
-        dto.setTamanioBytes(file.getSize());
-        dto.setContenidoArchivo(Base64.getEncoder().encodeToString(file.getBytes()));
-        
-        // Campos extraídos por IA
-        dto.setTipoArchivoDetectado(getStringValue(jsonNode, "tipoArchivoDetectado"));
-        dto.setResumen(getStringValue(jsonNode, "resumen"));
-        dto.setNombreTitular(getStringValue(jsonNode, "nombreTitular"));
-        dto.setEmisor(getStringValue(jsonNode, "emisor"));
-        dto.setNumeroFactura(getStringValue(jsonNode, "numeroFactura"));
-        
-        // Monto
-        if (jsonNode.has("monto") && !jsonNode.get("monto").isNull()) {
-            try {
-                if (jsonNode.get("monto").isNumber()) {
-                    dto.setMonto(jsonNode.get("monto").asDouble());
-                } else {
-                    String montoStr = jsonNode.get("monto").asText();
-                    if (!"null".equalsIgnoreCase(montoStr)) {
-                        dto.setMonto(Double.parseDouble(montoStr.replaceAll("[^\\d.]", "")));
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("Error al parsear monto: " + e.getMessage());
-            }
-        }
-        
-        // Fecha
-        String fechaEmision = getStringValue(jsonNode, "fechaEmision");
-        if (fechaEmision != null) {
-            try {
-                dto.setFechaEmision(java.sql.Date.valueOf(fechaEmision.replace("_o_null", "")));
-            } catch (Exception e) {
-                System.err.println("Error al parsear fecha: " + e.getMessage());
-            }
-        }
-        
-        return dto;
-    }
-    
-    /**
-     * Método helper para extraer string de JSON
-     */
-    private String getStringValue(JsonNode node, String fieldName) {
-        if (node.has(fieldName) && !node.get(fieldName).isNull()) {
-            return node.get(fieldName).asText();
-        }
-        return null;
-    }
-
     // Método auxiliar para extraer valores de string de un JSON con valor por defecto
     private String getStringValue(JsonNode node, String fieldName, String defaultValue) {
         if (node != null && node.has(fieldName) && !node.get(fieldName).isNull()) {
