@@ -96,6 +96,18 @@ public class OpenAIClasificadorService {
                 dto.setEmisor(getStringValue(respuestaReconocimiento, "emisor", null));
                 dto.setNumeroFactura(getStringValue(respuestaReconocimiento, "numeroFactura", null));
                 
+                // Procesar tipoCategoria - convertir string a enum
+                String tipoCategoriaStr = getStringValue(respuestaReconocimiento, "tipoCategoria", null);
+                if (tipoCategoriaStr != null && !tipoCategoriaStr.equals("null")) {
+                    try {
+                        // Convertir el string a enum Categoria
+                        dto.setTipoCategoria(com.uade.tpo.keepit.enums.Categoria.valueOf(tipoCategoriaStr));
+                    } catch (IllegalArgumentException e) {
+                        System.err.println("Categoría no válida: " + tipoCategoriaStr);
+                        dto.setTipoCategoria(null);
+                    }
+                }
+                
                 // Procesar el monto si existe
                 if (respuestaReconocimiento.has("monto") && !respuestaReconocimiento.get("monto").isNull()) {
                     try {
@@ -117,15 +129,23 @@ public class OpenAIClasificadorService {
                     }
                 }
                 
-                // Procesar la fecha si existe
-                String fechaEmision = getStringValue(respuestaReconocimiento, "fechaEmision", null);
-                if (fechaEmision != null) {
+                // Procesar la fecha de emisión si existe
+                String fechaEmision = getStringValue(respuestaReconocimiento, "fecha", null);
+                if (fechaEmision != null && !fechaEmision.equals("null") && !fechaEmision.contains("_o_null")) {
                     try {
-                        // Limpiar formato y convertir a fecha SQL
-                        fechaEmision = fechaEmision.replace("_o_null", "");
                         dto.setFechaEmision(java.sql.Date.valueOf(fechaEmision));
                     } catch (Exception e) {
-                        System.err.println("Error al procesar la fecha: " + e.getMessage());
+                        System.err.println("Error al procesar la fecha de emisión: " + e.getMessage());
+                    }
+                }
+                
+                // Procesar la fecha de vencimiento si existe
+                String fechaVencimiento = getStringValue(respuestaReconocimiento, "fechaVencimiento", null);
+                if (fechaVencimiento != null && !fechaVencimiento.equals("null") && !fechaVencimiento.contains("_o_null")) {
+                    try {
+                        dto.setFechaVencimiento(java.sql.Date.valueOf(fechaVencimiento));
+                    } catch (Exception e) {
+                        System.err.println("Error al procesar la fecha de vencimiento: " + e.getMessage());
                     }
                 }
                 

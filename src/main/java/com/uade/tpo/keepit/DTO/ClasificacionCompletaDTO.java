@@ -20,7 +20,6 @@ public class ClasificacionCompletaDTO {
     private byte[] contenido;
     
     // Campos para organización
-    private List<String> categorias;
     private String resumen;
     
     // Campos del titular
