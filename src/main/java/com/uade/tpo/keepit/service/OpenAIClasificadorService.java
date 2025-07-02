@@ -8,11 +8,8 @@ import com.google.protobuf.ByteString;
 import com.uade.tpo.keepit.DTO.ClasificacionCompletaDTO;
 import com.uade.tpo.keepit.DTO.DirectorioDTO;
 import com.uade.tpo.keepit.DTO.OrganizacionDirectoriosDTO;
-import com.uade.tpo.keepit.entities.Archivo;
-import com.uade.tpo.keepit.entities.Directorio;
+
 import com.uade.tpo.keepit.entities.Usuario;
-import com.uade.tpo.keepit.repository.ArchivoRepository;
-import com.uade.tpo.keepit.repository.DirectorioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -25,18 +22,11 @@ import com.google.api.gax.core.FixedCredentialsProvider;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
-
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.util.*;
-import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.Base64;
 
 @Service
 public class OpenAIClasificadorService {
-
-    private static final Logger logger = LoggerFactory.getLogger(OpenAIClasificadorService.class);
 
     @Value("${openai.api.key}")
     private String apiKey;
@@ -51,13 +41,7 @@ public class OpenAIClasificadorService {
     private String documentOrganizerAssistantId;
 
     @Autowired
-    private DirectorioRepository directorioRepository;
-
-    @Autowired
     private DirectorioService directorioService;
-
-    @Autowired
-    private ArchivoRepository archivoRepository;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -276,12 +260,16 @@ public class OpenAIClasificadorService {
         // Agregar el header necesario para Assistants API
         headers.add("OpenAI-Beta", "assistants=v2");
 
-        // Preparar el contenido del mensaje con texto OCR e información del archivo
-        String mensajeContenido = textoExtraido + "\n\n" +
-                "Información del archivo:\n" +
+        // Convertir archivo a Base64
+        String archivoBase64 = Base64.getEncoder().encodeToString(file.getBytes());
+
+        // Preparar el contenido del mensaje con texto OCR, información del archivo Y el archivo en Base64
+        String mensajeContenido = "TEXTO EXTRAÍDO CON OCR:\n" + textoExtraido + "\n\n" +
+                "INFORMACIÓN DEL ARCHIVO:\n" +
                 "Nombre: " + file.getOriginalFilename() + "\n" +
                 "Tipo: " + file.getContentType() + "\n" +
-                "Tamaño: " + file.getSize() + " bytes";
+                "Tamaño: " + file.getSize() + " bytes\n\n" +
+                "ARCHIVO EN BASE64:\n" + archivoBase64;
 
         try {
             // 1. Crear un thread
