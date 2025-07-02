@@ -21,16 +21,20 @@ import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.exceptions.ArchivoDuplicadoException;
 import com.uade.tpo.keepit.repository.ArchivoRepository;
 import com.uade.tpo.keepit.repository.DirectorioRepository;
+import com.uade.tpo.keepit.repository.DocumentoRepository;
 
 @Service
 public class ArchivoServiceImpl implements ArchivoService {
     
     @Autowired
     private ArchivoRepository archivoRepository;
-
+    
     @Autowired
     private DirectorioRepository directorioRepository;
-
+    
+    @Autowired
+    private DocumentoRepository documentoRepository;
+    
     @Override
     public List<ArchivoDTO> getArchivos() {
         return archivoRepository.findAll().stream()
@@ -195,11 +199,11 @@ public class ArchivoServiceImpl implements ArchivoService {
 
     @Override
     public List<ArchivoDTO> getArchivosConVencimientosCercanos() {
-        List<Archivo> archivos = archivoRepository.findByFechaVencimientoBetween(
+        List<Documento> documentos = documentoRepository.findByFechaVencimientoBetween(
                 LocalDate.now(),
                 LocalDate.now().plusDays(7)
         );
-        return archivos.stream()
+        return documentos.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }

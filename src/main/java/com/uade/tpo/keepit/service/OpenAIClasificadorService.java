@@ -154,6 +154,9 @@ public class OpenAIClasificadorService {
             List<DirectorioDTO> estructuraDirectorios = directorioService.obtenerDirectoriosParaIA(usuario);
             
             // 2. Crear el objeto de entrada para la IA según el formato especificado en el prompt
+
+
+            //aca agregar datos que quiero que sirvan para la reorganización
             Map<String, Object> entradaIA = new HashMap<>();
             entradaIA.put("nombre", clasificacion.getNombre());
             entradaIA.put("tipoExtension", clasificacion.getTipoExtension());
@@ -161,7 +164,10 @@ public class OpenAIClasificadorService {
             entradaIA.put("nombreTitular", clasificacion.getNombreTitular());
             entradaIA.put("emisor", clasificacion.getEmisor());
             entradaIA.put("tipoArchivoDetectado", clasificacion.getTipoArchivoDetectado());
-            
+            entradaIA.put("fechaVencimiento", clasificacion.getFechaVencimiento() != null ? clasificacion.getFechaVencimiento().toString() : null);
+            entradaIA.put("nombreTitular", clasificacion.getNombreTitular());
+            entradaIA.put("emailTitular", clasificacion.getEmailTitular());
+
             if (clasificacion.getFechaEmision() != null) {
                 entradaIA.put("fechaEmision", clasificacion.getFechaEmision().toString());
             }
