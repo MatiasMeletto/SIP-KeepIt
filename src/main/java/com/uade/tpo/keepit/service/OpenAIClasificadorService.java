@@ -131,7 +131,7 @@ public class OpenAIClasificadorService {
                 }
 
                 // Procesar la fecha de emisión si existe
-                String fechaEmision = getStringValue(respuestaReconocimiento, "fecha", null);
+                String fechaEmision = getStringValue(respuestaReconocimiento, "fechaEmision", null);
                 if (fechaEmision != null && !fechaEmision.equals("null") && !fechaEmision.contains("_o_null")) {
                     try {
                         dto.setFechaEmision(java.sql.Date.valueOf(fechaEmision));
@@ -223,7 +223,7 @@ public class OpenAIClasificadorService {
             System.out.println("=== Extrayendo texto con OCR ===");
 
             // Configurar credenciales explícitamente
-            String credentialsPath = "/Users/manuelbanchero/dev/uade/SIP-KeepIt/src/main/resources/google-cloud-key.json";
+            String credentialsPath = "C:\\Users\\matis\\SIP-KeepIt\\src\\main\\resources\\google-cloud-key.json";
             InputStream credentialsStream = new FileInputStream(credentialsPath);
             GoogleCredentials credentials = GoogleCredentials.fromStream(credentialsStream);
             ImageAnnotatorSettings settings = ImageAnnotatorSettings.newBuilder()

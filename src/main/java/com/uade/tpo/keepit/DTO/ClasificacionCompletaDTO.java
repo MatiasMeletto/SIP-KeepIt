@@ -17,7 +17,6 @@ public class ClasificacionCompletaDTO {
     private String tipoExtension;
     private Long tamanioBytes;
     private String contenidoArchivo; // En base64
-    private byte[] contenido;
     
     // Campos para organización
     private String resumen;
@@ -32,10 +31,8 @@ public class ClasificacionCompletaDTO {
     // Campos para Comprobante
     private Double monto;
     private Categoria tipoCategoria;
-    private Date fechaCreacion;
     
     // Campos para Documento
-    private Date fechaSubida;
     private Date fechaVencimiento;
     
     // Campos para Factura

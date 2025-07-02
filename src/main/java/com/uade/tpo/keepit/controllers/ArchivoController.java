@@ -19,6 +19,7 @@ import com.uade.tpo.keepit.service.ArchivoService;
 import com.uade.tpo.keepit.service.DirectorioService;
 import com.uade.tpo.keepit.service.OpenAIClasificadorService;
 
+import java.io.Console;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -137,7 +138,7 @@ public class ArchivoController {
                 resultado.setTipoArchivoDetectado("DOCUMENTO");
                 resultado.setResumen("No se pudo procesar con IA: " + e.getMessage());
             }
-            
+            System.out.println("Resultado de reconocimiento: " + resultado);
             return ResponseEntity.ok(resultado);
             
         } catch (Exception e) {
