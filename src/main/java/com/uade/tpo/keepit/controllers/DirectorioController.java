@@ -1,5 +1,6 @@
 package com.uade.tpo.keepit.controllers;
 
+import com.uade.tpo.keepit.DTO.DirectorioDTO;
 import com.uade.tpo.keepit.entities.Directorio;
 import com.uade.tpo.keepit.service.DirectorioService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,32 +18,27 @@ public class DirectorioController {
     @Autowired
     private DirectorioService directorioService;
     
-    @GetMapping
-    public ResponseEntity<List<Directorio>> obtenerTodos() {
-        return ResponseEntity.ok(directorioService.obtenerTodos());
-    }
-    
-    @GetMapping("/raiz")
-    public ResponseEntity<List<Directorio>> obtenerRaices() {
-        return ResponseEntity.ok(directorioService.obtenerDirectoriosRaiz());
+    @GetMapping("/{email}")
+    public ResponseEntity<List<DirectorioDTO>> obtenerTodos(@PathVariable String email) {
+        return ResponseEntity.ok(directorioService.obtenerByEmail(email));
     }
     
     @GetMapping("/{id}")
-    public ResponseEntity<Directorio> obtenerPorId(@PathVariable Long id) {
-        Optional<Directorio> directorio = directorioService.obtenerPorId(id);
+    public ResponseEntity<DirectorioDTO> obtenerPorId(@PathVariable Long id) {
+        Optional<DirectorioDTO> directorio = directorioService.obtenerPorId(id);
         return directorio.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
     
     @PostMapping
-    public ResponseEntity<Directorio> crear(@RequestBody Map<String, Object> datos) {
+    public ResponseEntity<DirectorioDTO> crear(@RequestBody Map<String, Object> datos) {
         String nombre = (String) datos.get("nombre");
         Long padreId = null;
         
         if (datos.containsKey("padreId")) {
             padreId = Long.valueOf(datos.get("padreId").toString());
         }
-        
-        Directorio nuevo = directorioService.crearDirectorio(nombre, padreId);
+
+        DirectorioDTO nuevo = directorioService.toDto(directorioService.crearDirectorio(nombre, padreId));
         return ResponseEntity.ok(nuevo);
     }
 }

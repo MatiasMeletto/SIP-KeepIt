@@ -7,6 +7,8 @@ import com.uade.tpo.keepit.entities.Directorio;
 import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.repository.ArchivoRepository;
 import com.uade.tpo.keepit.repository.DirectorioRepository;
+import com.uade.tpo.keepit.repository.UserRepository;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
@@ -26,7 +28,7 @@ public class DirectorioServiceImpl implements DirectorioService {
     private DirectorioRepository directorioRepository;
     
     @Autowired
-    private ArchivoService archivoService;
+    private UserRepository usuarioRepository;
     
     @Autowired
     private ArchivoRepository archivoRepository;
@@ -62,8 +64,8 @@ public class DirectorioServiceImpl implements DirectorioService {
     }
     
     @Override
-    public Optional<Directorio> obtenerPorId(Long id) {
-        return directorioRepository.findById(id);
+    public Optional<DirectorioDTO> obtenerPorId(Long id) {
+        return directorioRepository.findById(id).map(this::toDto);
     }
     
     @Override
@@ -483,5 +485,23 @@ public class DirectorioServiceImpl implements DirectorioService {
         
         // No se eliminan archivos, solo se dejarían sin directorio si fuera necesario
         // Pero según el prompt, nunca se deben eliminar archivos
+    }
+
+    @Override
+    public List<DirectorioDTO> obtenerByEmail(String email) {
+        Usuario usuario = usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con email: " + email));
+        List<Directorio> directorios = directorioRepository.findByUsuario(usuario);
+        return directorios.stream().map(this::toDto).collect(Collectors.toList());
+    }
+
+    @Override
+    public DirectorioDTO toDto(Directorio directorio) {
+        DirectorioDTO dto = new DirectorioDTO();
+        dto.setId_directorio(directorio.getId().toString());
+        dto.setId_directorio_padre(directorio.getPadre() != null ? directorio.getPadre().getId().toString() : null);
+        dto.setNombre(directorio.getNombre());
+        // Mapear otros campos según sea necesario
+        return dto;
     }
 }

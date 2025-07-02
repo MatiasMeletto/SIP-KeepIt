@@ -98,8 +98,8 @@ public class ArchivoController {
                         .filename(arch.getNombre())
                         .build());
 
-                // Convertir el contenido (String) a byte[]
-                byte[] contenidoBytes = arch.getContenido().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                // Decodificar el contenido Base64 a byte[]
+                byte[] contenidoBytes = Base64.getDecoder().decode(arch.getContenido());
                 return ResponseEntity.ok()
                         .headers(headers)
                         .body(contenidoBytes);

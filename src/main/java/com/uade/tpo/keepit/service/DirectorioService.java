@@ -16,7 +16,7 @@ public interface DirectorioService {
     
     List<Directorio> obtenerTodos();
     
-    Optional<Directorio> obtenerPorId(Long id);
+    Optional<DirectorioDTO> obtenerPorId(Long id);
     
     Directorio crearDirectorio(String nombre, Long padreId);
     
@@ -46,4 +46,8 @@ public interface DirectorioService {
     
     // Añadir este método para obtener solo directorios con archivos
     List<Map<String, Object>> obtenerDirectoriosConArchivos(Usuario usuario);
+
+    List<DirectorioDTO> obtenerByEmail(String email);
+
+    DirectorioDTO toDto(Directorio directorio);
 }

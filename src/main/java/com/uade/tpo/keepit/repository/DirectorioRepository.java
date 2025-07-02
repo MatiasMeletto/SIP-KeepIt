@@ -15,6 +15,8 @@ public interface DirectorioRepository extends JpaRepository<Directorio, Long> {
     Optional<Directorio> findByNombreAndPadreId(String nombre, Long padreId);
     
     Optional<Directorio> findByNombreAndPadreIsNull(String nombre);
+
+    List<Directorio> findByUsuario(Usuario usuario);
     
     List<Directorio> findAllByPadreIsNull();
 

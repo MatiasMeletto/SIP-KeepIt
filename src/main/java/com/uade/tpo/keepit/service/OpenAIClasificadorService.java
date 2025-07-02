@@ -273,62 +273,94 @@ public class OpenAIClasificadorService {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(apiKey);
+        // Agregar el header necesario para Assistants API
+        headers.add("OpenAI-Beta", "assistants=v2");
 
-        String mensajeContenido = "Analiza el siguiente texto extraído por OCR y clasifica el documento. " +
-                "Responde con un objeto JSON con los siguientes campos cuando sea posible: " +
-                "tipoArchivoDetectado, resumen, nombreTitular, emisor, numeroFactura, monto, fechaEmision.\n\n" +
-                textoExtraido + "\n\n" +
+        // Preparar el contenido del mensaje con texto OCR e información del archivo
+        String mensajeContenido = textoExtraido + "\n\n" +
                 "Información del archivo:\n" +
                 "Nombre: " + file.getOriginalFilename() + "\n" +
                 "Tipo: " + file.getContentType() + "\n" +
                 "Tamaño: " + file.getSize() + " bytes";
 
-        // Preparar cuerpo de la solicitud
-        Map<String, Object> message = new HashMap<>();
-        message.put("role", "user");
-        message.put("content", mensajeContenido);
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", "gpt-4o");
-        requestBody.put("messages", Collections.singletonList(message));
-        requestBody.put("temperature", 0.1);
-        requestBody.put("response_format", Map.of("type", "json_object"));
-
-        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-
         try {
-            System.out.println("Enviando solicitud a OpenAI API...");
-            ResponseEntity<String> response = restTemplate.postForEntity(
-                    apiUrl,
-                    request,
+            // 1. Crear un thread
+            Map<String, Object> threadRequest = new HashMap<>();
+            HttpEntity<Map<String, Object>> threadEntity = new HttpEntity<>(threadRequest, headers);
+            ResponseEntity<String> threadResponse = restTemplate.postForEntity(
+                    "https://api.openai.com/v1/threads",
+                    threadEntity,
+                    String.class);
+            String threadId = objectMapper.readTree(threadResponse.getBody()).get("id").asText();
+
+            // 2. Añadir mensaje al thread
+            Map<String, Object> messageRequest = new HashMap<>();
+            messageRequest.put("role", "user");
+            messageRequest.put("content", mensajeContenido);
+
+            HttpEntity<Map<String, Object>> messageEntity = new HttpEntity<>(messageRequest, headers);
+            restTemplate.postForEntity(
+                    "https://api.openai.com/v1/threads/" + threadId + "/messages",
+                    messageEntity,
                     String.class);
 
-            // Depuración - muestra la respuesta completa
-            System.out.println("Respuesta de OpenAI: " + response.getBody());
+            // 3. Ejecutar el assistant
+            Map<String, Object> runRequest = new HashMap<>();
+            runRequest.put("assistant_id", documentRecognizerAssistantId);
 
-            if (response.getStatusCode() == HttpStatus.OK) {
-                // Extraer el contenido del mensaje de respuesta
-                JsonNode responseNode = objectMapper.readTree(response.getBody());
-                String responseContent = responseNode.path("choices").path(0).path("message").path("content").asText();
+            HttpEntity<Map<String, Object>> runEntity = new HttpEntity<>(runRequest, headers);
+            ResponseEntity<String> runResponse = restTemplate.postForEntity(
+                    "https://api.openai.com/v1/threads/" + threadId + "/runs",
+                    runEntity,
+                    String.class);
 
-                // Intentar parsear la respuesta como JSON
-                try {
-                    return objectMapper.readTree(responseContent);
-                } catch (Exception e) {
-                    System.err.println("Error al parsear respuesta como JSON: " + e.getMessage());
+            String runId = objectMapper.readTree(runResponse.getBody()).get("id").asText();
 
-                    // Crear una respuesta por defecto
-                    ObjectNode defaultNode = objectMapper.createObjectNode();
-                    defaultNode.put("tipoArchivoDetectado", "DOCUMENTO");
-                    defaultNode.put("resumen", "Documento escaneado sin texto reconocible");
+            // 4. Esperar a que termine el run
+            String status = "queued";
+            while (!status.equals("completed")) {
+                Thread.sleep(1000); // Esperar 1 segundo
+                ResponseEntity<String> statusResponse = restTemplate.exchange(
+                        "https://api.openai.com/v1/threads/" + threadId + "/runs/" + runId,
+                        HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        String.class);
 
-                    return defaultNode;
+                status = objectMapper.readTree(statusResponse.getBody()).get("status").asText();
+                if (status.equals("failed") || status.equals("cancelled")) {
+                    throw new RuntimeException("Document Recognizer run failed with status: " + status);
                 }
-            } else {
-                throw new RuntimeException("Error en la respuesta de OpenAI: " + response.getStatusCode());
             }
+
+            // 5. Obtener mensajes
+            ResponseEntity<String> messagesResponse = restTemplate.exchange(
+                    "https://api.openai.com/v1/threads/" + threadId + "/messages",
+                    HttpMethod.GET,
+                    new HttpEntity<>(headers),
+                    String.class);
+
+            // Obtener el último mensaje del assistant
+            JsonNode messages = objectMapper.readTree(messagesResponse.getBody()).get("data");
+            String content = "";
+
+            for (JsonNode message : messages) {
+                if (message.get("role").asText().equals("assistant")) {
+                    content = message.get("content").get(0).get("text").get("value").asText();
+                    break;
+                }
+            }
+
+            // Extraer el JSON del contenido
+            String jsonContent = extractJsonFromContent(content);
+
+            // Para debugging
+            System.out.println("CONTENIDO JSON EXTRAÍDO (Recognizer): " + jsonContent);
+
+            // Parsear el JSON limpio
+            return objectMapper.readTree(jsonContent);
+
         } catch (Exception e) {
-            System.err.println("Error al llamar a OpenAI API: " + e.getMessage());
+            System.err.println("Error al llamar a Document Recognizer Assistant: " + e.getMessage());
             e.printStackTrace();
 
             // Devolver un objeto JSON por defecto en caso de error
@@ -488,6 +520,59 @@ public class OpenAIClasificadorService {
 
         dto.setDirectorios(directorios);
         return dto;
+    }
+
+    /**
+     * Extrae el JSON válido del contenido de respuesta que puede contener texto explicativo
+     */
+    private String extractJsonFromContent(String content) {
+        // Si el contenido está en un bloque de código, extraerlo primero
+        if (content.startsWith("```")) {
+            int startIndex = content.indexOf('\n');
+            if (startIndex != -1) {
+                int endIndex = content.lastIndexOf("```");
+                if (endIndex != -1) {
+                    content = content.substring(startIndex + 1, endIndex).trim();
+                }
+            }
+        }
+
+        // Buscar el primer { que indica el inicio del JSON
+        int jsonStart = content.indexOf('{');
+        if (jsonStart == -1) {
+            throw new RuntimeException("No se encontró JSON válido en la respuesta");
+        }
+
+        // Buscar el último } que cierra el JSON
+        int jsonEnd = content.lastIndexOf('}');
+        if (jsonEnd == -1 || jsonEnd <= jsonStart) {
+            throw new RuntimeException("No se encontró JSON válido en la respuesta");
+        }
+
+        // Extraer solo la parte JSON
+        String jsonContent = content.substring(jsonStart, jsonEnd + 1);
+
+        // Validar que sea JSON válido
+        try {
+            objectMapper.readTree(jsonContent);
+            return jsonContent;
+        } catch (Exception e) {
+            // Si no es JSON válido, intentar encontrar el JSON dentro del texto
+            // Buscar patrones más específicos como "json" seguido de {
+            int jsonKeywordIndex = content.toLowerCase().indexOf("json");
+            if (jsonKeywordIndex != -1) {
+                String afterJson = content.substring(jsonKeywordIndex + 4);
+                int newJsonStart = afterJson.indexOf('{');
+                if (newJsonStart != -1) {
+                    int newJsonEnd = afterJson.lastIndexOf('}');
+                    if (newJsonEnd != -1 && newJsonEnd > newJsonStart) {
+                        return afterJson.substring(newJsonStart, newJsonEnd + 1);
+                    }
+                }
+            }
+
+            throw new RuntimeException("No se pudo extraer JSON válido: " + e.getMessage());
+        }
     }
 
     // Método auxiliar para extraer valores de string de un JSON con valor por

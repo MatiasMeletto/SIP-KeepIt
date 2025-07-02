@@ -2,7 +2,11 @@ package com.uade.tpo.keepit.entities;
 
 import jakarta.persistence.*;
 import lombok.Data;
+
+import org.apache.catalina.valves.rewrite.InternalRewriteMap.Escape;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.uade.tpo.keepit.enums.Estado;
 
 import java.io.IOException;
 
@@ -47,6 +51,9 @@ public abstract class Archivo {
 
     @Column
     private String carpeta;
+
+    @Column
+    private Estado estado = Estado.PENDIENTE;
 
     @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = true)
