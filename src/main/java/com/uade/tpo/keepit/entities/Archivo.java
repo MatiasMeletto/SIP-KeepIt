@@ -2,13 +2,13 @@ package com.uade.tpo.keepit.entities;
 
 import jakarta.persistence.*;
 import lombok.Data;
-
-import org.apache.catalina.valves.rewrite.InternalRewriteMap.Escape;
+import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.uade.tpo.keepit.enums.Estado;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 
 @Data
 @Inheritance(strategy = InheritanceType.JOINED)
@@ -55,6 +55,10 @@ public abstract class Archivo {
     @Column
     private Estado estado = Estado.PENDIENTE;
 
+    @CreationTimestamp
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime fechaSubida;
+
     @ManyToOne
     @JoinColumn(name = "usuario_id", nullable = true)
     private Usuario usuario;
@@ -68,27 +72,21 @@ public abstract class Archivo {
 
     // Constructor para MultipartFile (si lo usás en algún lado)
     public Archivo(MultipartFile archivo, Usuario user) throws IOException {
-        this.nombre = archivo.getOriginalFilename();
-        this.contenido = java.util.Base64.getEncoder().encodeToString(archivo.getBytes());
-        this.tamanioBytes = archivo.getSize();
-        this.tipoExtension = archivo.getContentType();
-        this.usuario = user;
+        this.setNombre(archivo.getOriginalFilename());
+        this.setContenido(java.util.Base64.getEncoder().encodeToString(archivo.getBytes()));
+        this.setTamanioBytes(archivo.getSize());
+        this.setTipoExtension(archivo.getContentType());
+        this.setUsuario(user);
+        this.setEliminado(false);
     }
 
     public Archivo(MultipartFile archivo, Usuario user, String nombreTitular, String direccionTitular, 
                    String emailTitular, String telefonoTitular, String documentoIdentidadTitular) throws IOException {
-        this.nombre = archivo.getOriginalFilename();
-        this.contenido = java.util.Base64.getEncoder().encodeToString(archivo.getBytes());
-        this.tamanioBytes = archivo.getSize();
-        this.tipoExtension = archivo.getContentType();
-        this.usuario = user;
-        this.nombreTitular = nombreTitular;
-        this.direccionTitular = direccionTitular;
-        this.emailTitular = emailTitular;
-        this.telefonoTitular = telefonoTitular;
-        this.documentoIdentidadTitular = documentoIdentidadTitular;
+        this(archivo, user); // Llamar al constructor anterior para evitar duplicación
+        this.setNombreTitular(nombreTitular);
+        this.setDireccionTitular(direccionTitular);
+        this.setEmailTitular(emailTitular);
+        this.setTelefonoTitular(telefonoTitular);
+        this.setDocumentoIdentidadTitular(documentoIdentidadTitular);
     }
-
-    // Elimina este método, ya no es necesario
-    // public String getContenidoBase64() { ... }
 }

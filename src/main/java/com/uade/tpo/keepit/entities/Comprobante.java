@@ -20,8 +20,6 @@ import org.springframework.web.multipart.MultipartFile;
 @DiscriminatorValue("comprobante")
 public class Comprobante extends Archivo {
     @Column(nullable = false)
-    private Date fechaCreacion;
-    @Column(nullable = false)
     private Double monto;
     @Enumerated(EnumType.STRING)
     private Categoria tipoCategoria;
@@ -33,7 +31,6 @@ public class Comprobante extends Archivo {
                        String emailTitular, String telefonoTitular, String documentoIdentidadTitular,
                        Date fechaCreacion, Double monto, Categoria tipoCategoria) throws IOException {
         super(archivo, user, nombreTitular, direccionTitular, emailTitular, telefonoTitular, documentoIdentidadTitular);
-        this.fechaCreacion = fechaCreacion;
         this.monto = monto;
         this.tipoCategoria = tipoCategoria;
     }

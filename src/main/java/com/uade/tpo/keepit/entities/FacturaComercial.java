@@ -28,4 +28,7 @@ public class FacturaComercial extends Archivo {
     
     @Column(name = "tipo_factura", length = 10)
     private String tipoFactura; // A, B, C (solo los básicos)
+
+    @Column(nullable = true)
+    private Date fechaVencimiento;
 }

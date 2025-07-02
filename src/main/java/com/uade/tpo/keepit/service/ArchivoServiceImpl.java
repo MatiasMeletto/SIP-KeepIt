@@ -1,7 +1,8 @@
 package com.uade.tpo.keepit.service;
 
+import java.sql.Date;
 import java.time.LocalDate;
-import java.util.Base64;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -58,7 +59,7 @@ public class ArchivoServiceImpl implements ArchivoService {
             documento.setContenido(java.util.Base64.getEncoder().encodeToString(file.getBytes()));
             documento.setUsuario(user);
             documento.setEliminado(false);
-            documento.setFechaSubida(new java.sql.Date(System.currentTimeMillis()));
+            // fechaSubida se establece automáticamente con @CreationTimestamp
             
             return archivoRepository.save(documento);
         } catch (Exception e) {
@@ -94,7 +95,6 @@ public class ArchivoServiceImpl implements ArchivoService {
                 case "COMPROBANTE":
                     Comprobante comprobante = new Comprobante();
                     comprobante.setMonto(clasificacion.getMonto());
-                    comprobante.setFechaCreacion(new java.sql.Date(System.currentTimeMillis()));
                     archivo = comprobante;
                     break;
                     
@@ -104,12 +104,14 @@ public class ArchivoServiceImpl implements ArchivoService {
                     factura.setFechaEmision(clasificacion.getFechaEmision());
                     factura.setMontoTotal(clasificacion.getMonto());
                     factura.setEmisor(clasificacion.getEmisor());
+                    factura.setTipoFactura(clasificacion.getTipoFactura());
+                    factura.setFechaVencimiento(clasificacion.getFechaVencimiento());
                     archivo = factura;
                     break;
                     
                 default:
                     Documento documento = new Documento();
-                    documento.setFechaSubida(new java.sql.Date(System.currentTimeMillis()));
+                    documento.setFechaVencimiento(clasificacion.getFechaVencimiento());
                     archivo = documento;
                     break;
             }
@@ -120,6 +122,7 @@ public class ArchivoServiceImpl implements ArchivoService {
             archivo.setUsuario(usuario);
             archivo.setDirectorio(directorio);
             archivo.setEliminado(false);
+            // fechaSubida se establece automáticamente con @CreationTimestamp
             
             // Campos del titular
             archivo.setNombreTitular(clasificacion.getNombreTitular());
@@ -150,6 +153,12 @@ public class ArchivoServiceImpl implements ArchivoService {
         dto.setNombreTitular(archivo.getNombreTitular());
         dto.setDocumentoIdentidadTitular(archivo.getDocumentoIdentidadTitular());
         
+        // Mapear fechaSubida de LocalDateTime a java.sql.Date
+        if (archivo.getFechaSubida() != null) {
+            dto.setFechaSubida(new Date(archivo.getFechaSubida()
+                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()));
+        }
+        
         // Información del directorio
         if (archivo.getDirectorio() != null) {
             dto.setDirectorioId(archivo.getDirectorio().getId());
@@ -161,11 +170,9 @@ public class ArchivoServiceImpl implements ArchivoService {
             Comprobante comp = (Comprobante) archivo;
             dto.setTipoArchivo("COMPROBANTE");
             dto.setMonto(comp.getMonto());
-            dto.setFechaCreacion(comp.getFechaCreacion());
         } else if (archivo instanceof Documento) {
             Documento doc = (Documento) archivo;
             dto.setTipoArchivo("DOCUMENTO");
-            dto.setFechaSubida(doc.getFechaSubida());
             dto.setFechaVencimiento(doc.getFechaVencimiento());
         } else if (archivo instanceof FacturaComercial) {
             FacturaComercial factura = (FacturaComercial) archivo;

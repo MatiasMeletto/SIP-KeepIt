@@ -15,8 +15,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Entity
 @Data
 public class Documento extends Archivo {
-    @Column(nullable = false)
-    private Date fechaSubida;
     @Column(nullable = true)
     private Date fechaVencimiento;
 
@@ -25,9 +23,8 @@ public class Documento extends Archivo {
 
     public Documento(MultipartFile archivo, Usuario user, String nombreTitular, String direccionTitular, 
                      String emailTitular, String telefonoTitular, String documentoIdentidadTitular,
-                     Date fechaSubida, Date fechaVencimiento) throws IOException {
+                     Date fechaVencimiento) throws IOException {
         super(archivo, user, nombreTitular, direccionTitular, emailTitular, telefonoTitular, documentoIdentidadTitular);
-        this.fechaSubida = fechaSubida;
         this.fechaVencimiento = fechaVencimiento;
     }
 }
