@@ -11,7 +11,6 @@ import com.uade.tpo.keepit.repository.UserRepository;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
 
 import java.util.ArrayList;
@@ -213,10 +212,10 @@ public class DirectorioServiceImpl implements DirectorioService {
             mapaDirectoriosActuales.put(dir.getId().toString(), dir);
         }
         
-        // 2. Creamos un mapa para los directorios actualizados/nuevos
-        Map<String, Directorio> directoriosActualizados = new HashMap<>();
+        // 2. Crear mapa que contendrá ID temporal -> ID real para directorios nuevos
+        Map<String, String> mapeoIDsTemporales = new HashMap<>();
         
-        // Primera pasada: Actualizar/crear directorios
+        // Primera pasada: Crear/actualizar directorios
         for (DirectorioDTO dirDTO : organizacionDTO.getDirectorios()) {
             String idDirectorio = dirDTO.getId_directorio();
             boolean esNuevo = idDirectorio.startsWith("-");
@@ -229,49 +228,47 @@ public class DirectorioServiceImpl implements DirectorioService {
                 nuevoDirect.setSubdirectorios(new ArrayList<>());
                 nuevoDirect.setArchivos(new ArrayList<>());
                 
-                // Guardar para obtener ID
+                // Guardar para obtener ID real
                 Directorio guardado = directorioRepository.save(nuevoDirect);
-                directoriosActualizados.put(idDirectorio, guardado);
+                mapeoIDsTemporales.put(idDirectorio, guardado.getId().toString());
                 
                 System.out.println("Directorio creado: " + guardado.getId() + " - " + guardado.getNombre());
             } else {
-                // Es un directorio existente
+                // Es un directorio existente, actualizar nombre si cambió
                 Directorio existente = mapaDirectoriosActuales.get(idDirectorio);
                 
                 if (existente != null) {
-                    // Actualizar nombre si cambió
                     if (!existente.getNombre().equals(dirDTO.getNombre())) {
                         existente.setNombre(dirDTO.getNombre());
                         existente = directorioRepository.save(existente);
                         System.out.println("Nombre actualizado para directorio " + existente.getId() + 
                                            ": " + existente.getNombre());
                     }
-                    
-                    directoriosActualizados.put(idDirectorio, existente);
-                    // Eliminar del mapa original para saber cuáles borrar al final
-                    mapaDirectoriosActuales.remove(idDirectorio);
                 } else {
                     System.err.println("No se encontró el directorio con ID: " + idDirectorio);
                 }
             }
         }
         
-        // Segunda pasada: Actualizar relaciones padre-hijo y archivos
+        // Segunda pasada: Actualizar relaciones padre-hijo
         for (DirectorioDTO dirDTO : organizacionDTO.getDirectorios()) {
             String idDirectorio = dirDTO.getId_directorio();
             String idPadre = dirDTO.getId_directorio_padre();
             
-            // Obtener el directorio (nuevo o existente)
-            Directorio directorio = directoriosActualizados.get(idDirectorio);
+            // Convertir ID temporal a real si es necesario
+            String idDirectorioReal = mapeoIDsTemporales.getOrDefault(idDirectorio, idDirectorio);
+            String idPadreReal = null;
+            if (idPadre != null && !idPadre.equals("null")) {
+                idPadreReal = mapeoIDsTemporales.getOrDefault(idPadre, idPadre);
+            }
+            
+            // Obtener el directorio por su ID real
+            Directorio directorio = directorioRepository.findById(Long.parseLong(idDirectorioReal)).orElse(null);
             
             if (directorio != null) {
                 // Actualizar padre
-                if (idPadre != null && !idPadre.equals("null")) {
-                    Directorio padre = directoriosActualizados.get(idPadre);
-                    if (padre == null) {
-                        // Podría ser un directorio existente que no se tocó
-                        padre = mapaDirectoriosActuales.get(idPadre);
-                    }
+                if (idPadreReal != null) {
+                    Directorio padre = directorioRepository.findById(Long.parseLong(idPadreReal)).orElse(null);
                     
                     if (padre != null) {
                         boolean cambiarPadre = false;
@@ -288,33 +285,78 @@ public class DirectorioServiceImpl implements DirectorioService {
                             System.out.println("Actualizado padre de directorio " + directorio.getId() + 
                                     " a " + padre.getId() + " (" + padre.getNombre() + ")");
                         }
+                    } else {
+                        System.err.println("No se encontró el directorio padre con ID: " + idPadreReal);
                     }
                 } else if (directorio.getPadre() != null) {
                     // Quitar padre (mover a raíz)
                     directorio.setPadre(null);
                     directorio = directorioRepository.save(directorio);
+                    System.out.println("Directorio " + directorio.getId() + " movido a raíz");
                 }
+            } else {
+                System.err.println("No se encontró el directorio con ID: " + idDirectorioReal);
+            }
+        }
+        
+        // Tercera pasada: Asignar archivos a directorios según la nueva estructura
+        for (DirectorioDTO dirDTO : organizacionDTO.getDirectorios()) {
+            String idDirectorio = dirDTO.getId_directorio();
+            String idDirectorioReal = mapeoIDsTemporales.getOrDefault(idDirectorio, idDirectorio);
+            
+            Directorio directorio = directorioRepository.findById(Long.parseLong(idDirectorioReal)).orElse(null);
+            
+            if (directorio != null) {
+                // Para cada archivo listado en este directorio, asignarlo aquí
+                for (String nombreArchivo : dirDTO.getArchivos()) {
+                    List<Archivo> archivosEncontrados = archivoRepository.findByNombreAndUsuarioAndEliminadoFalse(
+                        nombreArchivo, usuario);
+                    
+                    if (!archivosEncontrados.isEmpty()) {
+                        Archivo archivo = archivosEncontrados.get(0);
+                        // Solo mover si no está ya en este directorio
+                        if (archivo.getDirectorio() == null || !archivo.getDirectorio().getId().equals(directorio.getId())) {
+                            archivo.setDirectorio(directorio);
+                            archivoRepository.save(archivo);
+                            System.out.println("Archivo " + archivo.getId() + " (" + archivo.getNombre() + 
+                                            ") asignado al directorio " + directorio.getId() + " (" + directorio.getNombre() + ")");
+                        }
+                    } else {
+                        System.err.println("No se encontró el archivo: " + nombreArchivo);
+                    }
+                }
+            }
+        }
+        
+        // 4. Eliminar todos los directorios vacíos (sin archivos y sin subdirectorios)
+        // Ejecutar múltiples veces para manejar directorios anidados vacíos
+        boolean eliminados;
+        do {
+            eliminados = false;
+            List<Directorio> todosDirectorios = directorioRepository.findByUsuario(usuario);
+            
+            for (Directorio dir : todosDirectorios) {
+                // Verificar que esté realmente vacío
+                int cantidadArchivos = directorioRepository.countArchivosByDirectorioId(dir.getId());
                 
-                // Manejar archivos
-                actualizarArchivosDirectorio(directorio, dirDTO.getArchivos(), usuario);
-            }
-        }
-        
-        // 3. Eliminar directorios vacíos que ya no están en la estructura
-        for (Directorio directorioSobrante : mapaDirectoriosActuales.values()) {
-            // Solo eliminar si no tiene archivos y no tiene subdirectorios
-            if ((directorioSobrante.getArchivos() == null || directorioSobrante.getArchivos().isEmpty()) &&
-                (directorioSobrante.getSubdirectorios() == null || directorioSobrante.getSubdirectorios().isEmpty())) {
-                try {
-                    directorioRepository.delete(directorioSobrante);
-                    System.out.println("Directorio eliminado: " + directorioSobrante.getId() + " - " + directorioSobrante.getNombre());
-                } catch (Exception e) {
-                    System.err.println("Error al eliminar directorio " + directorioSobrante.getId() + ": " + e.getMessage());
+                // Contar subdirectorios
+                long cantidadSubdirectorios = todosDirectorios.stream()
+                    .filter(d -> d.getPadre() != null && d.getPadre().getId().equals(dir.getId()))
+                    .count();
+                
+                if (cantidadArchivos == 0 && cantidadSubdirectorios == 0) {
+                    try {
+                        directorioRepository.delete(dir);
+                        System.out.println("Directorio vacío eliminado: " + dir.getId() + " - " + dir.getNombre());
+                        eliminados = true;
+                    } catch (Exception e) {
+                        System.err.println("Error al eliminar directorio vacío " + dir.getId() + ": " + e.getMessage());
+                    }
                 }
             }
-        }
+        } while (eliminados); // Repetir hasta que no se elimine ningún directorio más
         
-        // 4. Preparar respuesta
+        // 5. Preparar respuesta
         List<Directorio> directoriosFinal = directorioRepository.findAllByUsuarioId(usuario.getId());
         
         resultado.put("directorios", convertirDirectoriosMap(directoriosFinal));
@@ -446,47 +488,6 @@ public class DirectorioServiceImpl implements DirectorioService {
         return resultado;
     }
     
-    @Transactional
-    private void actualizarArchivosDirectorio(Directorio directorio, List<String> archivosDeseados, Usuario usuario) {
-        // Obtener los archivos actuales del directorio
-        List<Archivo> archivosActuales = directorio.getArchivos() != null ? 
-            directorio.getArchivos().stream()
-                .filter(a -> !a.getEliminado())
-                .collect(Collectors.toList()) : 
-            new ArrayList<>();
-        
-        // Mapa para búsqueda rápida de archivos por nombre
-        Map<String, Archivo> mapaArchivos = new HashMap<>();
-        for (Archivo a : archivosActuales) {
-            mapaArchivos.put(a.getNombre(), a);
-        }
-        
-        // Para cada archivo deseado, ver si ya existe o hay que moverlo
-        for (String nombreArchivo : archivosDeseados) {
-            if (mapaArchivos.containsKey(nombreArchivo)) {
-                // Ya está en este directorio, no hacer nada
-                mapaArchivos.remove(nombreArchivo); // Quitar para saber cuáles sobran
-            } else {
-                // Buscar el archivo por nombre y usuario
-                List<Archivo> archivosEncontrados = archivoRepository.findByNombreAndUsuarioAndEliminadoFalse(
-                    nombreArchivo, usuario);
-                
-                if (!archivosEncontrados.isEmpty()) {
-                    // Encontrado, actualizar su directorio
-                    Archivo archivo = archivosEncontrados.get(0);
-                    archivo.setDirectorio(directorio);
-                    archivoRepository.save(archivo);
-                    System.out.println("Archivo " + archivo.getId() + " (" + archivo.getNombre() + ") movido al directorio " + 
-                                      directorio.getId() + " (" + directorio.getNombre() + ")");
-                }
-                // Si no existe, no podemos hacer nada (no creamos archivos nuevos)
-            }
-        }
-        
-        // No se eliminan archivos, solo se dejarían sin directorio si fuera necesario
-        // Pero según el prompt, nunca se deben eliminar archivos
-    }
-
     @Override
     public List<DirectorioDTO> obtenerByEmail(String email) {
         Usuario usuario = usuarioRepository.findByEmail(email)
