@@ -2,9 +2,11 @@ package com.uade.tpo.keepit.controllers;
 
 import com.uade.tpo.keepit.DTO.DirectorioDTO;
 import com.uade.tpo.keepit.entities.Directorio;
+import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.service.DirectorioService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,26 +16,27 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/directorios")
 public class DirectorioController {
-    
+
     @Autowired
     private DirectorioService directorioService;
-    
-    @GetMapping("/{email}")
-    public ResponseEntity<List<DirectorioDTO>> obtenerTodos(@PathVariable String email) {
-        return ResponseEntity.ok(directorioService.obtenerByEmail(email));
+
+    @GetMapping
+    public ResponseEntity<List<DirectorioDTO>> obtenerTodos(Authentication authentication) {
+        Usuario usuario = (Usuario) authentication.getPrincipal();
+        return ResponseEntity.ok(directorioService.obtenerByEmail(usuario.getEmail()));
     }
-    
+
     @GetMapping("/{id}")
     public ResponseEntity<DirectorioDTO> obtenerPorId(@PathVariable Long id) {
         Optional<DirectorioDTO> directorio = directorioService.obtenerPorId(id);
         return directorio.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
-    
+
     @PostMapping
     public ResponseEntity<DirectorioDTO> crear(@RequestBody Map<String, Object> datos) {
         String nombre = (String) datos.get("nombre");
         Long padreId = null;
-        
+
         if (datos.containsKey("padreId")) {
             padreId = Long.valueOf(datos.get("padreId").toString());
         }

@@ -223,7 +223,7 @@ public class OpenAIClasificadorService {
             System.out.println("=== Extrayendo texto con OCR ===");
 
             // Configurar credenciales explícitamente
-            String credentialsPath = "C:\\Users\\matis\\SIP-KeepIt\\src\\main\\resources\\google-cloud-key.json";
+            String credentialsPath = "/Users/manuelbanchero/dev/uade/SIP-KeepIt/src/main/resources/google-cloud-key.json";
             InputStream credentialsStream = new FileInputStream(credentialsPath);
             GoogleCredentials credentials = GoogleCredentials.fromStream(credentialsStream);
             ImageAnnotatorSettings settings = ImageAnnotatorSettings.newBuilder()
@@ -523,7 +523,8 @@ public class OpenAIClasificadorService {
     }
 
     /**
-     * Extrae el JSON válido del contenido de respuesta que puede contener texto explicativo
+     * Extrae el JSON válido del contenido de respuesta que puede contener texto
+     * explicativo
      */
     private String extractJsonFromContent(String content) {
         // Si el contenido está en un bloque de código, extraerlo primero
