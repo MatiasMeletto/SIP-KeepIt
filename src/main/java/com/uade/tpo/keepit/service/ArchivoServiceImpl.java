@@ -153,6 +153,7 @@ public class ArchivoServiceImpl implements ArchivoService {
         dto.setEliminado(archivo.getEliminado());
         dto.setNombreTitular(archivo.getNombreTitular());
         dto.setDocumentoIdentidadTitular(archivo.getDocumentoIdentidadTitular());
+        dto.setEstado(archivo.getEstado());
 
         // Mapear fechaSubida de LocalDateTime a java.sql.Date
         if (archivo.getFechaSubida() != null) {
