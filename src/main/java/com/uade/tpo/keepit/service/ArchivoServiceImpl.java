@@ -195,8 +195,18 @@ public class ArchivoServiceImpl implements ArchivoService {
 
     @Override
     public Void eliminarArchivo(Archivo archivo) {
+        // Guardar referencia al directorio antes de eliminar el archivo
+        Directorio directorio = archivo.getDirectorio();
+        
+        // Marcar el archivo como eliminado
         archivo.setEliminado(true);
         archivoRepository.save(archivo);
+        
+        // Si el archivo pertenecía a un directorio, verificar si quedó vacío
+        if (directorio != null) {
+            verificarYEliminarDirectorioVacio(directorio);
+        }
+        
         return null;
     }
 
@@ -214,5 +224,38 @@ public class ArchivoServiceImpl implements ArchivoService {
         return documentos.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Long contarArchivosPorUsuario(Usuario usuario) {
+        return archivoRepository.countByUsuarioAndEliminadoFalse(usuario);
+    }
+    
+    /**
+     * Verifica si un directorio está vacío (sin archivos no eliminados y sin subdirectorios no eliminados)
+     * y lo marca como eliminado si es el caso. Aplica recursivamente hacia arriba en la jerarquía.
+     */
+    private void verificarYEliminarDirectorioVacio(Directorio directorio) {
+        if (directorio == null || directorio.getEliminado()) {
+            return;
+        }
+        
+        // Contar archivos no eliminados en el directorio
+        Long archivosNoEliminados = archivoRepository.countByDirectorioAndEliminadoFalse(directorio);
+        
+        // Contar subdirectorios no eliminados
+        Long subdirectoriosNoEliminados = directorioRepository.countByPadreAndEliminadoFalse(directorio);
+        
+        // Si no hay archivos no eliminados y no hay subdirectorios no eliminados, marcar como eliminado
+        if (archivosNoEliminados == 0 && subdirectoriosNoEliminados == 0) {
+            Directorio padre = directorio.getPadre();
+            
+            // Marcar el directorio como eliminado (soft delete)
+            directorio.setEliminado(true);
+            directorioRepository.save(directorio);
+            
+            // Verificar recursivamente el directorio padre
+            verificarYEliminarDirectorioVacio(padre);
+        }
     }
 }

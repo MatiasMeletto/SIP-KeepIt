@@ -1,7 +1,6 @@
 package com.uade.tpo.keepit.controllers;
 
 import com.uade.tpo.keepit.DTO.DirectorioDTO;
-import com.uade.tpo.keepit.entities.Directorio;
 import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.service.DirectorioService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,5 +42,21 @@ public class DirectorioController {
 
         DirectorioDTO nuevo = directorioService.toDto(directorioService.crearDirectorio(nombre, padreId));
         return ResponseEntity.ok(nuevo);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> eliminar(@PathVariable Long id, Authentication authentication) {
+        try {
+            boolean eliminado = directorioService.eliminarDirectorio(id);
+            if (eliminado) {
+                return ResponseEntity.ok(Map.of("mensaje", "Directorio eliminado correctamente"));
+            } else {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "No se puede eliminar: el directorio contiene archivos o subdirectorios"));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(Map.of("error", "Error al eliminar directorio: " + e.getMessage()));
+        }
     }
 }

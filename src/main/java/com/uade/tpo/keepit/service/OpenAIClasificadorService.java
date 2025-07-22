@@ -8,7 +8,7 @@ import com.google.protobuf.ByteString;
 import com.uade.tpo.keepit.DTO.ClasificacionCompletaDTO;
 import com.uade.tpo.keepit.DTO.DirectorioDTO;
 import com.uade.tpo.keepit.DTO.OrganizacionDirectoriosDTO;
-
+import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Usuario;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -59,6 +59,45 @@ public class OpenAIClasificadorService {
             dto.setTamanioBytes(file.getSize());
             dto.setContenidoArchivo(Base64.getEncoder().encodeToString(file.getBytes()));
 
+            // Verificar si es PDF para procesamiento directo
+            String contentType = file.getContentType();
+            
+            if (contentType != null && contentType.equals("application/pdf")) {
+                // Para PDFs, enviar directamente al Assistant sin OCR
+                try {
+                    System.out.println("=== PROCESANDO PDF ===");
+                    System.out.println("Nombre: " + file.getOriginalFilename());
+                    System.out.println("Tamaño: " + file.getSize() + " bytes");
+                    System.out.println("Content-Type: " + contentType);
+                    
+                    JsonNode respuestaReconocimiento = llamarDocumentRecognizer("", file);
+                    
+                    System.out.println("=== RESPUESTA DEL ASSISTANT PARA PDF ===");
+                    System.out.println(respuestaReconocimiento.toString());
+                    System.out.println("==========================================");
+                    
+                    // 3. Completar el DTO con los datos reconocidos
+                    dto.setTipoArchivoDetectado(
+                            getStringValue(respuestaReconocimiento, "tipoArchivoDetectado", "DOCUMENTO"));
+                    dto.setResumen(getStringValue(respuestaReconocimiento, "resumen", "PDF procesado"));
+                    dto.setNombreTitular(getStringValue(respuestaReconocimiento, "nombreTitular", null));
+                    dto.setEmisor(getStringValue(respuestaReconocimiento, "emisor", null));
+                    dto.setNumeroFactura(getStringValue(respuestaReconocimiento, "numeroFactura", null));
+
+                    // Procesar el resto de campos como antes
+                    procesarCamposAdicionales(respuestaReconocimiento, dto);
+                    
+                } catch (Exception e) {
+                    System.err.println("Error al procesar PDF con IA: " + e.getMessage());
+                    e.printStackTrace();
+                    dto.setTipoArchivoDetectado("DOCUMENTO");
+                    dto.setResumen("No se pudo procesar PDF con IA: " + e.getMessage());
+                }
+                
+                return dto;
+            }
+
+            // Para imágenes, usar OCR como antes
             // 1. Extraer texto con OCR
             String textoExtraido = extraerTextoConOCR(file);
 
@@ -81,59 +120,8 @@ public class OpenAIClasificadorService {
                 dto.setEmisor(getStringValue(respuestaReconocimiento, "emisor", null));
                 dto.setNumeroFactura(getStringValue(respuestaReconocimiento, "numeroFactura", null));
 
-                // Procesar tipoCategoria - convertir string a enum
-                String tipoCategoriaStr = getStringValue(respuestaReconocimiento, "tipoCategoria", null);
-                if (tipoCategoriaStr != null && !tipoCategoriaStr.equals("null")) {
-                    try {
-                        // Convertir el string a enum Categoria
-                        dto.setTipoCategoria(com.uade.tpo.keepit.enums.Categoria.valueOf(tipoCategoriaStr));
-                    } catch (IllegalArgumentException e) {
-                        System.err.println("Categoría no válida: " + tipoCategoriaStr);
-                        dto.setTipoCategoria(null);
-                    }
-                }
-
-                // Procesar el monto si existe
-                if (respuestaReconocimiento.has("monto") && !respuestaReconocimiento.get("monto").isNull()) {
-                    try {
-                        JsonNode montoNode = respuestaReconocimiento.get("monto");
-                        if (montoNode.isNumber()) {
-                            dto.setMonto(montoNode.asDouble());
-                        } else {
-                            String montoStr = montoNode.asText();
-                            if (!"null".equalsIgnoreCase(montoStr)) {
-                                // Eliminar caracteres no numéricos excepto punto decimal
-                                montoStr = montoStr.replaceAll("[^\\d.]", "");
-                                if (!montoStr.isEmpty()) {
-                                    dto.setMonto(Double.parseDouble(montoStr));
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        System.err.println("Error al procesar el monto: " + e.getMessage());
-                    }
-                }
-
-                // Procesar la fecha de emisión si existe
-                String fechaEmision = getStringValue(respuestaReconocimiento, "fechaEmision", null);
-                if (fechaEmision != null && !fechaEmision.equals("null") && !fechaEmision.contains("_o_null")) {
-                    try {
-                        dto.setFechaEmision(java.sql.Date.valueOf(fechaEmision));
-                    } catch (Exception e) {
-                        System.err.println("Error al procesar la fecha de emisión: " + e.getMessage());
-                    }
-                }
-
-                // Procesar la fecha de vencimiento si existe
-                String fechaVencimiento = getStringValue(respuestaReconocimiento, "fechaVencimiento", null);
-                if (fechaVencimiento != null && !fechaVencimiento.equals("null")
-                        && !fechaVencimiento.contains("_o_null")) {
-                    try {
-                        dto.setFechaVencimiento(java.sql.Date.valueOf(fechaVencimiento));
-                    } catch (Exception e) {
-                        System.err.println("Error al procesar la fecha de vencimiento: " + e.getMessage());
-                    }
-                }
+                // Procesar campos adicionales
+                procesarCamposAdicionales(respuestaReconocimiento, dto);
 
             } catch (Exception e) {
                 System.err.println("Error al procesar con IA: " + e.getMessage());
@@ -153,8 +141,9 @@ public class OpenAIClasificadorService {
 
     /**
      * Método para sugerir organización del documento y sincronizar directorios
+     * MODIFICADO: Ahora recibe el archivo ya creado como parámetro
      */
-    public Map<String, Object> sugerirOrganizacion(ClasificacionCompletaDTO clasificacion, Usuario usuario) {
+    public Map<String, Object> sugerirOrganizacion(ClasificacionCompletaDTO clasificacion, Usuario usuario, Archivo archivoCreado) {
         try {
             // 1. Obtener lista de directorios del usuario en formato DTO para la IA
             List<DirectorioDTO> estructuraDirectorios = directorioService.obtenerDirectoriosParaIA(usuario);
@@ -173,7 +162,6 @@ public class OpenAIClasificadorService {
             entradaIA.put("fechaVencimiento",
                     clasificacion.getFechaVencimiento() != null ? clasificacion.getFechaVencimiento().toString()
                             : null);
-            entradaIA.put("nombreTitular", clasificacion.getNombreTitular());
             entradaIA.put("emailTitular", clasificacion.getEmailTitular());
 
             if (clasificacion.getFechaEmision() != null) {
@@ -190,7 +178,8 @@ public class OpenAIClasificadorService {
             OrganizacionDirectoriosDTO organizacionDTO = procesarRespuestaOrganizador(respuestaJson);
 
             // 5. Sincronizar estructura de directorios según la respuesta
-            Map<String, Object> resultadoFinal = directorioService.sincronizarDirectorios(organizacionDTO, usuario);
+            // MODIFICADO: Ahora pasamos el archivo ya creado
+            Map<String, Object> resultadoFinal = directorioService.sincronizarDirectorios(organizacionDTO, usuario, archivoCreado);
 
             return resultadoFinal;
 
@@ -200,14 +189,52 @@ public class OpenAIClasificadorService {
     }
 
     /**
-     * Extrae texto de una imagen o PDF usando Google Cloud Vision
+     * Extrae texto de una imagen o PDF usando Google Cloud Vision o Apache PDFBox
      */
     private String extraerTextoConOCR(MultipartFile file) {
         try {
-            System.out.println("=== Extrayendo texto con OCR ===");
+            String contentType = file.getContentType();
+            
+            // Si es PDF, usar Apache PDFBox
+            if (contentType != null && contentType.equals("application/pdf")) {
+                return extraerTextoDePDF(file);
+            }
+            
+            // Si es imagen, usar Google Cloud Vision OCR
+            return extraerTextoConGoogleVision(file);
+            
+        } catch (Exception e) {
+            System.err.println("Error en extracción de texto: " + e.getMessage());
+            e.printStackTrace();
+            return "";
+        }
+    }
+    
+    /**
+     * Extrae texto de PDFs usando Apache PDFBox
+     */
+    private String extraerTextoDePDF(MultipartFile file) {
+        try {
+            // TODO: Implementar PDFBox después de agregar la dependencia
+            System.err.println("Extracción de PDF no implementada aún. Necesita dependencia PDFBox.");
+            return "PDF procesado - extracción pendiente";
+            
+        } catch (Exception e) {
+            System.err.println("Error al extraer texto del PDF: " + e.getMessage());
+            e.printStackTrace();
+            return "";
+        }
+    }
+    
+    /**
+     * Extrae texto de imágenes usando Google Cloud Vision
+     */
+    private String extraerTextoConGoogleVision(MultipartFile file) {
+        try {
+            //System.out.println("=== Extrayendo texto con OCR ===");
 
             // Configurar credenciales explícitamente
-            String credentialsPath = "/Users/manuelbanchero/dev/uade/SIP-KeepIt/src/main/resources/google-cloud-key.json";
+            String credentialsPath = "C:\\Users\\matis\\SIP-KeepIt\\src\\main\\resources\\google-cloud-key.json";
             InputStream credentialsStream = new FileInputStream(credentialsPath);
             GoogleCredentials credentials = GoogleCredentials.fromStream(credentialsStream);
             ImageAnnotatorSettings settings = ImageAnnotatorSettings.newBuilder()
@@ -215,36 +242,37 @@ public class OpenAIClasificadorService {
                     .build();
 
             // Crear cliente Vision API con las credenciales explícitas
-            ImageAnnotatorClient vision = ImageAnnotatorClient.create(settings);
+            // Usar try-with-resources para cerrar automáticamente el cliente
+            try (ImageAnnotatorClient vision = ImageAnnotatorClient.create(settings)) {
+                ByteString imgBytes = ByteString.copyFrom(file.getBytes());
+                Image img = Image.newBuilder().setContent(imgBytes).build();
+                Feature feature = Feature.newBuilder().setType(Feature.Type.TEXT_DETECTION).build();
+                AnnotateImageRequest request = AnnotateImageRequest.newBuilder()
+                        .addFeatures(feature)
+                        .setImage(img)
+                        .build();
 
-            ByteString imgBytes = ByteString.copyFrom(file.getBytes());
-            Image img = Image.newBuilder().setContent(imgBytes).build();
-            Feature feature = Feature.newBuilder().setType(Feature.Type.TEXT_DETECTION).build();
-            AnnotateImageRequest request = AnnotateImageRequest.newBuilder()
-                    .addFeatures(feature)
-                    .setImage(img)
-                    .build();
+                // Ejecutar detección de texto
+                AnnotateImageResponse response = vision.batchAnnotateImages(
+                        Collections.singletonList(request)).getResponses(0);
 
-            // Ejecutar detección de texto
-            AnnotateImageResponse response = vision.batchAnnotateImages(
-                    Collections.singletonList(request)).getResponses(0);
+                if (response.hasError()) {
+                    System.err.println("Error OCR: " + response.getError().getMessage());
+                    return "";
+                }
 
-            if (response.hasError()) {
-                System.err.println("Error OCR: " + response.getError().getMessage());
+                TextAnnotation text = response.getFullTextAnnotation();
+                if (text != null && text.getText() != null && !text.getText().isEmpty()) {
+                    String textoExtraido = text.getText();
+                    //System.out.println("=== TEXTO EXTRAÍDO ===\n" + textoExtraido);
+                    return textoExtraido;
+                }
+
                 return "";
-            }
-
-            TextAnnotation text = response.getFullTextAnnotation();
-            if (text != null && text.getText() != null && !text.getText().isEmpty()) {
-                String textoExtraido = text.getText();
-                System.out.println("=== TEXTO EXTRAÍDO ===\n" + textoExtraido);
-                return textoExtraido;
-            }
-
-            return "";
+            } // El cliente se cierra automáticamente aquí
 
         } catch (Exception e) {
-            System.err.println("Error en OCR: " + e.getMessage());
+            System.err.println("Error en OCR con Google Vision: " + e.getMessage());
             e.printStackTrace();
             return "";
         }
@@ -260,16 +288,76 @@ public class OpenAIClasificadorService {
         // Agregar el header necesario para Assistants API
         headers.add("OpenAI-Beta", "assistants=v2");
 
-        // Convertir archivo a Base64
+        String contentType = file.getContentType();
         String archivoBase64 = Base64.getEncoder().encodeToString(file.getBytes());
+        
+        // Verificar el tamaño del mensaje para decidir el método
+        boolean esPDF = (contentType != null && contentType.equals("application/pdf"));
+        boolean archivoMuyGrande = archivoBase64.length() > 200000; // Límite conservador de 200K caracteres
+        
+        // Para archivos grandes, usar File API. Para pequeños, usar Base64 en mensaje
+        boolean usarFileAPI = esPDF && archivoMuyGrande;
 
-        // Preparar el contenido del mensaje con texto OCR, información del archivo Y el archivo en Base64
-        String mensajeContenido = "TEXTO EXTRAÍDO CON OCR:\n" + textoExtraido + "\n\n" +
-                "INFORMACIÓN DEL ARCHIVO:\n" +
-                "Nombre: " + file.getOriginalFilename() + "\n" +
-                "Tipo: " + file.getContentType() + "\n" +
-                "Tamaño: " + file.getSize() + " bytes\n\n" +
-                "ARCHIVO EN BASE64:\n" + archivoBase64;
+        System.out.println("=== ANALIZANDO ARCHIVO ===");
+        System.out.println("Archivo: " + file.getOriginalFilename());
+        System.out.println("Tamaño: " + file.getSize() + " bytes");
+        System.out.println("Content-Type: " + contentType);
+        System.out.println("Base64 length: " + archivoBase64.length() + " caracteres");
+        System.out.println("¿Usar File API?: " + usarFileAPI);
+        System.out.println("==============================");
+
+        // Preparar el contenido del mensaje según el método elegido
+        String mensajeContenido = "";
+        String fileId = null;
+        
+        if (usarFileAPI) {
+            // Método 1: Usar File API para archivos grandes
+            try {
+                fileId = subirArchivoAOpenAI(file);
+                mensajeContenido = "Por favor, procesa el archivo PDF adjunto (File ID: " + fileId + ") y extrae la información solicitada:\n\n" +
+                        "INFORMACIÓN DEL ARCHIVO:\n" +
+                        "- Nombre: " + file.getOriginalFilename() + "\n" +
+                        "- Tipo: " + file.getContentType() + "\n" +
+                        "- Tamaño: " + file.getSize() + " bytes";
+                
+                System.out.println("=== USANDO FILE API ===");
+                System.out.println("File ID: " + fileId);
+                System.out.println("=======================");
+                
+            } catch (Exception e) {
+                System.err.println("Error al subir archivo con File API, fallback a Base64: " + e.getMessage());
+                usarFileAPI = false;
+            }
+        }
+        
+        if (!usarFileAPI) {
+            // Método 2: Base64 en mensaje (para archivos pequeños o fallback)
+            if (esPDF) {
+                mensajeContenido = "Por favor, procesa este archivo PDF y extrae la información solicitada:\n\n" +
+                        "INFORMACIÓN DEL ARCHIVO:\n" +
+                        "- Nombre: " + file.getOriginalFilename() + "\n" +
+                        "- Tipo: " + file.getContentType() + "\n" +
+                        "- Tamaño: " + file.getSize() + " bytes\n\n" +
+                        "El archivo está codificado en Base64 a continuación:\n\n" +
+                        archivoBase64;
+            } else {
+                // Para imágenes, usar texto OCR como principal y archivo como respaldo
+                mensajeContenido = "TEXTO EXTRAÍDO CON OCR:\n" + textoExtraido + "\n\n" +
+                        "INFORMACIÓN DEL ARCHIVO:\n" +
+                        "Nombre: " + file.getOriginalFilename() + "\n" +
+                        "Tipo: " + file.getContentType() + "\n" +
+                        "Tamaño: " + file.getSize() + " bytes";
+                
+                boolean incluirArchivo = (textoExtraido == null || textoExtraido.trim().isEmpty());
+                if (incluirArchivo) {
+                    mensajeContenido += "\n\n" + "ARCHIVO EN BASE64 (para respaldo):\n" + archivoBase64;
+                }
+            }
+            
+            System.out.println("=== USANDO BASE64 EN MENSAJE ===");
+            System.out.println("Longitud del mensaje: " + mensajeContenido.length() + " caracteres");
+            System.out.println("=================================");
+        }
 
         try {
             // 1. Crear un thread
@@ -285,6 +373,16 @@ public class OpenAIClasificadorService {
             Map<String, Object> messageRequest = new HashMap<>();
             messageRequest.put("role", "user");
             messageRequest.put("content", mensajeContenido);
+            
+            // Si usamos File API, agregar el attachment
+            if (usarFileAPI && fileId != null) {
+                List<Map<String, Object>> attachments = new ArrayList<>();
+                Map<String, Object> attachment = new HashMap<>();
+                attachment.put("file_id", fileId);
+                attachment.put("tools", List.of(Map.of("type", "file_search")));
+                attachments.add(attachment);
+                messageRequest.put("attachments", attachments);
+            }
 
             HttpEntity<Map<String, Object>> messageEntity = new HttpEntity<>(messageRequest, headers);
             restTemplate.postForEntity(
@@ -340,9 +438,6 @@ public class OpenAIClasificadorService {
 
             // Extraer el JSON del contenido
             String jsonContent = extractJsonFromContent(content);
-
-            // Para debugging
-            System.out.println("CONTENIDO JSON EXTRAÍDO (Recognizer): " + jsonContent);
 
             // Parsear el JSON limpio
             return objectMapper.readTree(jsonContent);
@@ -451,8 +546,10 @@ public class OpenAIClasificadorService {
             }
         }
 
-        // Para debugging
-        System.out.println("CONTENIDO JSON EXTRAÍDO: " + content);
+        // Para debugging - Mostrar la respuesta de la IA
+        System.out.println("=== RESPUESTA DEL DOCUMENT ORGANIZER ===");
+        System.out.println(content);
+        System.out.println("==========================================");
 
         // Ahora parsear el JSON limpio
         return objectMapper.readTree(content);
@@ -571,5 +668,103 @@ public class OpenAIClasificadorService {
             return node.get(fieldName).asText();
         }
         return defaultValue;
+    }
+
+    /**
+     * Procesa campos adicionales comunes del reconocimiento de documentos
+     */
+    private void procesarCamposAdicionales(JsonNode respuestaReconocimiento, ClasificacionCompletaDTO dto) {
+        // Procesar tipoCategoria - convertir string a enum
+        String tipoCategoriaStr = getStringValue(respuestaReconocimiento, "tipoCategoria", null);
+        if (tipoCategoriaStr != null && !tipoCategoriaStr.equals("null")) {
+            try {
+                // Convertir el string a enum Categoria
+                dto.setTipoCategoria(com.uade.tpo.keepit.enums.Categoria.valueOf(tipoCategoriaStr));
+            } catch (IllegalArgumentException e) {
+                System.err.println("Categoría no válida: " + tipoCategoriaStr);
+                dto.setTipoCategoria(null);
+            }
+        }
+
+        // Procesar el monto si existe
+        if (respuestaReconocimiento.has("monto") && !respuestaReconocimiento.get("monto").isNull()) {
+            try {
+                JsonNode montoNode = respuestaReconocimiento.get("monto");
+                if (montoNode.isNumber()) {
+                    dto.setMonto(montoNode.asDouble());
+                } else {
+                    String montoStr = montoNode.asText();
+                    if (!"null".equalsIgnoreCase(montoStr)) {
+                        // Eliminar caracteres no numéricos excepto punto decimal
+                        montoStr = montoStr.replaceAll("[^\\d.]", "");
+                        if (!montoStr.isEmpty()) {
+                            dto.setMonto(Double.parseDouble(montoStr));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Error al procesar el monto: " + e.getMessage());
+            }
+        }
+
+        // Procesar la fecha de emisión si existe
+        String fechaEmision = getStringValue(respuestaReconocimiento, "fechaEmision", null);
+        if (fechaEmision != null && !fechaEmision.equals("null") && !fechaEmision.contains("_o_null")) {
+            try {
+                dto.setFechaEmision(java.sql.Date.valueOf(fechaEmision));
+            } catch (Exception e) {
+                System.err.println("Error al procesar la fecha de emisión: " + e.getMessage());
+            }
+        }
+
+        // Procesar la fecha de vencimiento si existe
+        String fechaVencimiento = getStringValue(respuestaReconocimiento, "fechaVencimiento", null);
+        if (fechaVencimiento != null && !fechaVencimiento.equals("null")
+                && !fechaVencimiento.contains("_o_null")) {
+            try {
+                dto.setFechaVencimiento(java.sql.Date.valueOf(fechaVencimiento));
+            } catch (Exception e) {
+                System.err.println("Error al procesar la fecha de vencimiento: " + e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Sube un archivo a OpenAI usando la Files API
+     */
+    private String subirArchivoAOpenAI(MultipartFile file) throws Exception {
+        try {
+            // Crear headers para multipart/form-data
+            HttpHeaders headers = new HttpHeaders();
+            headers.setBearerAuth(apiKey);
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+            // Crear el cuerpo multipart
+            org.springframework.util.LinkedMultiValueMap<String, Object> body = new org.springframework.util.LinkedMultiValueMap<>();
+            body.add("file", new org.springframework.core.io.ByteArrayResource(file.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return file.getOriginalFilename();
+                }
+            });
+            body.add("purpose", "assistants");
+
+            HttpEntity<org.springframework.util.LinkedMultiValueMap<String, Object>> requestEntity = 
+                    new HttpEntity<>(body, headers);
+
+            // Subir archivo
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    "https://api.openai.com/v1/files", 
+                    requestEntity, 
+                    String.class);
+
+            // Extraer file ID de la respuesta
+            JsonNode responseNode = objectMapper.readTree(response.getBody());
+            return responseNode.get("id").asText();
+            
+        } catch (Exception e) {
+            System.err.println("Error al subir archivo a OpenAI: " + e.getMessage());
+            throw new RuntimeException("No se pudo subir el archivo a OpenAI: " + e.getMessage(), e);
+        }
     }
 }

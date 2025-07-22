@@ -13,10 +13,9 @@ import org.springframework.http.ContentDisposition;
 import com.uade.tpo.keepit.DTO.ArchivoDTO;
 import com.uade.tpo.keepit.DTO.ClasificacionCompletaDTO;
 import com.uade.tpo.keepit.entities.Archivo;
-import com.uade.tpo.keepit.entities.Directorio;
+import com.uade.tpo.keepit.entities.Documento;
 import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.service.ArchivoService;
-import com.uade.tpo.keepit.service.DirectorioService;
 import com.uade.tpo.keepit.service.OpenAIClasificadorService;
 
 import java.io.Console;
@@ -39,9 +38,6 @@ public class ArchivoController {
 
     @Autowired
     private ArchivoService archivoService;
-
-    @Autowired
-    private DirectorioService directorioService;
 
     @Autowired
     private OpenAIClasificadorService openAIClasificadorService;
@@ -138,7 +134,7 @@ public class ArchivoController {
                 resultado.setTipoArchivoDetectado("DOCUMENTO");
                 resultado.setResumen("No se pudo procesar con IA: " + e.getMessage());
             }
-            System.out.println("Resultado de reconocimiento: " + resultado);
+            //System.out.println("Resultado de reconocimiento: " + resultado);
             return ResponseEntity.ok(resultado);
             
         } catch (Exception e) {
@@ -164,47 +160,30 @@ public class ArchivoController {
                         .body(Map.of("error", "Faltan datos del archivo"));
             }
             
-            // CAMBIO 1: Utilizar el servicio de OpenAI para sugerir la organización
-            Map<String, Object> resultado = openAIClasificadorService.sugerirOrganizacion(clasificacion, usuario);
+            Map<String, Object> resultado;
             
-            // CAMBIO 2: Si se debe guardar el archivo, encontramos el directorio recomendado y lo guardamos
             if (guardar) {
-                // Obtener el directorio adecuado desde la respuesta de la IA
-                Long directorioId = null;
-                if (resultado.containsKey("directorioRecomendado")) {
-                    Map<String, Object> dirRecomendado = (Map<String, Object>) resultado.get("directorioRecomendado");
-                    if (dirRecomendado != null && dirRecomendado.containsKey("id")) {
-                        directorioId = ((Number) dirRecomendado.get("id")).longValue();
-                    }
-                }
+                // FLUJO CORREGIDO: Primero guardar el archivo, después organizarlo
                 
-                // Si no tenemos directorio recomendado, buscamos por tipo de archivo (fallback)
-                if (directorioId == null) {
-                    Directorio directorioSeleccionado = null;
-                    
-                    switch (clasificacion.getTipoArchivoDetectado()) {
-                        case "FACTURA":
-                            directorioSeleccionado = directorioService.obtenerPorNombre("Facturas", usuario);
-                            break;
-                        case "COMPROBANTE":
-                            directorioSeleccionado = directorioService.obtenerPorNombre("Comprobantes", usuario);
-                            break;
-                        default:
-                            directorioSeleccionado = directorioService.obtenerPorNombre("Documentos", usuario);
-                    }
-                    
-                    if (directorioSeleccionado != null) {
-                        directorioId = directorioSeleccionado.getId();
-                    }
-                }
+                // 1. PRIMERO: Crear y guardar el archivo en la base de datos
+                Archivo archivoCreado = archivoService.crearArchivoDesdeClasificacion(clasificacion, usuario);
+                System.out.println("Archivo creado con ID: " + archivoCreado.getId() + " - " + archivoCreado.getNombre());
                 
-                // Guardar el archivo en el directorio seleccionado
-                if (directorioId != null) {
-                    clasificacion.setDirectorioId(directorioId);
-                    Archivo archivoCreado = archivoService.crearArchivoDesdeClasificacion(clasificacion, usuario);
-                    
-                    resultado.put("archivoGuardado", archivoService.toDto(archivoCreado));
-                }
+                // 2. DESPUÉS: Utilizar el servicio de OpenAI para sugerir la organización
+                // MODIFICADO: Ahora pasamos el archivo ya creado
+                resultado = openAIClasificadorService.sugerirOrganizacion(clasificacion, usuario, archivoCreado);
+                
+                // Agregar información del archivo guardado a la respuesta
+                resultado.put("archivoGuardado", archivoService.toDto(archivoCreado));
+                
+            } else {
+                // Si no se debe guardar, crear un archivo temporal para la organización
+                // (este flujo probablemente no se use, pero lo mantengo para compatibilidad)
+                Documento archivoTemporal = new Documento();
+                archivoTemporal.setNombre(clasificacion.getNombre());
+                archivoTemporal.setUsuario(usuario);
+                
+                resultado = openAIClasificadorService.sugerirOrganizacion(clasificacion, usuario, archivoTemporal);
             }
             
             return ResponseEntity.ok(resultado);

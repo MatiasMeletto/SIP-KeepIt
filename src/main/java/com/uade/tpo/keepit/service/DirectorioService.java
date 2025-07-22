@@ -2,6 +2,7 @@ package com.uade.tpo.keepit.service;
 
 import com.uade.tpo.keepit.DTO.DirectorioDTO;
 import com.uade.tpo.keepit.DTO.OrganizacionDirectoriosDTO;
+import com.uade.tpo.keepit.entities.Archivo;
 import com.uade.tpo.keepit.entities.Directorio;
 import com.uade.tpo.keepit.entities.Usuario;
 import java.util.List;
@@ -37,6 +38,9 @@ public interface DirectorioService {
     
     // Nuevo método para sincronizar directorios con la respuesta de la IA
     Map<String, Object> sincronizarDirectorios(OrganizacionDirectoriosDTO organizacionDTO, Usuario usuario);
+    
+    // NUEVO: Método sobrecargado que recibe el archivo ya creado
+    Map<String, Object> sincronizarDirectorios(OrganizacionDirectoriosDTO organizacionDTO, Usuario usuario, Archivo archivoCreado);
     
     // Método para preparar la estructura de directorios para la IA
     List<DirectorioDTO> obtenerDirectoriosParaIA(Usuario usuario);
