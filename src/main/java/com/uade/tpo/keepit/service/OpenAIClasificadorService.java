@@ -121,6 +121,8 @@ public class OpenAIClasificadorService {
                 dto.setEmisor(getStringValue(respuestaReconocimiento, "emisor", null));
                 dto.setNumeroFactura(getStringValue(respuestaReconocimiento, "numeroFactura", null));
                 dto.setNombreRecomendado(getStringValue(respuestaReconocimiento, "nombreRecomendado", null));
+                dto.setDocumentoIdentidadTitular(
+                        getStringValue(respuestaReconocimiento, "documentoIdentidadTitular", null));
 
                 // Procesar campos adicionales
                 procesarCamposAdicionales(respuestaReconocimiento, dto);
