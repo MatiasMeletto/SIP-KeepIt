@@ -83,6 +83,7 @@ public class OpenAIClasificadorService {
                     dto.setNombreTitular(getStringValue(respuestaReconocimiento, "nombreTitular", null));
                     dto.setEmisor(getStringValue(respuestaReconocimiento, "emisor", null));
                     dto.setNumeroFactura(getStringValue(respuestaReconocimiento, "numeroFactura", null));
+                    dto.setNombreRecomendado(getStringValue(respuestaReconocimiento, "nombreRecomendado", null));
 
                     // Procesar el resto de campos como antes
                     procesarCamposAdicionales(respuestaReconocimiento, dto);
@@ -119,6 +120,7 @@ public class OpenAIClasificadorService {
                 dto.setNombreTitular(getStringValue(respuestaReconocimiento, "nombreTitular", null));
                 dto.setEmisor(getStringValue(respuestaReconocimiento, "emisor", null));
                 dto.setNumeroFactura(getStringValue(respuestaReconocimiento, "numeroFactura", null));
+                dto.setNombreRecomendado(getStringValue(respuestaReconocimiento, "nombreRecomendado", null));
 
                 // Procesar campos adicionales
                 procesarCamposAdicionales(respuestaReconocimiento, dto);
@@ -153,7 +155,15 @@ public class OpenAIClasificadorService {
 
             // aca agregar datos que quiero que sirvan para la reorganización
             Map<String, Object> entradaIA = new HashMap<>();
-            entradaIA.put("nombre", clasificacion.getNombre());
+            // Usar el nombre recomendado por la IA si está disponible, sino el nombre original
+            String nombreParaOrganizar = clasificacion.getNombreRecomendado() != null && !clasificacion.getNombreRecomendado().trim().isEmpty()
+                    ? clasificacion.getNombreRecomendado()
+                    : clasificacion.getNombre();
+            System.out.println("=== ENVIANDO AL DOCUMENT ORGANIZER ===");
+            System.out.println("Nombre original: " + clasificacion.getNombre());
+            System.out.println("Nombre recomendado por IA: " + clasificacion.getNombreRecomendado());
+            System.out.println("Nombre que se enviará al organizer: " + nombreParaOrganizar);
+            entradaIA.put("nombre", nombreParaOrganizar);
             entradaIA.put("tipoExtension", clasificacion.getTipoExtension());
             entradaIA.put("resumen", clasificacion.getResumen());
             entradaIA.put("nombreTitular", clasificacion.getNombreTitular());

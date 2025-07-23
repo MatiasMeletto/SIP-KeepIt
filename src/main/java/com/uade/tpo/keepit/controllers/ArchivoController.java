@@ -18,9 +18,7 @@ import com.uade.tpo.keepit.entities.Usuario;
 import com.uade.tpo.keepit.service.ArchivoService;
 import com.uade.tpo.keepit.service.OpenAIClasificadorService;
 
-import java.io.Console;
 import java.util.Base64;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,9 +53,45 @@ public class ArchivoController {
     }
     @GetMapping("/vencimientosCercanos")
     public ResponseEntity<List<ArchivoDTO>> getVencimientosCercanos() {
-        // Lógica para obtener archivos con vencimientos cercanos
+        // Lógica para obtener archivos con vencimientos cercanos (todos los usuarios - admin)
         List<ArchivoDTO> archivos = archivoService.getArchivosConVencimientosCercanos();
         return ResponseEntity.ok(archivos);
+    }
+    
+    @GetMapping("/misVencimientosCercanos")
+    public ResponseEntity<List<ArchivoDTO>> getMisVencimientosCercanos(Authentication authentication) {
+        try {
+            Usuario usuario = (Usuario) authentication.getPrincipal();
+            List<ArchivoDTO> archivos = archivoService.getArchivosConVencimientosCercanosPorUsuario(usuario);
+            return ResponseEntity.ok(archivos);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null);
+        }
+    }
+    
+    @GetMapping("/vencen-hoy")
+    public ResponseEntity<List<ArchivoDTO>> getArchivosQueVencenHoy(Authentication authentication) {
+        try {
+            Usuario usuario = (Usuario) authentication.getPrincipal();
+            List<ArchivoDTO> archivos = archivoService.getArchivosQueVencenHoyPorUsuario(usuario);
+            return ResponseEntity.ok(archivos);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null);
+        }
+    }
+    
+    @GetMapping("/vencidos")
+    public ResponseEntity<List<ArchivoDTO>> getArchivosVencidos(Authentication authentication) {
+        try {
+            Usuario usuario = (Usuario) authentication.getPrincipal();
+            List<ArchivoDTO> archivos = archivoService.getArchivosVencidosPorUsuario(usuario);
+            return ResponseEntity.ok(archivos);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(null);
+        }
     }
 
     @GetMapping("/{archivoId}")

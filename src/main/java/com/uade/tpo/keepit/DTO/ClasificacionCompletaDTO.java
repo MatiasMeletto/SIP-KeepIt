@@ -49,6 +49,7 @@ public class ClasificacionCompletaDTO {
     // Información adicional
     private String tipoArchivoDetectado; // "DOCUMENTO", "COMPROBANTE", "FACTURA"
     private String explicacionIA;
+    private String nombreRecomendado; // Nombre recomendado por la IA
     
     // Getter para mantener compatibilidad con ambos nombres
     public String getNombreArchivo() {

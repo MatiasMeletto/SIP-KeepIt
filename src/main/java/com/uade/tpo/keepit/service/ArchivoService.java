@@ -34,4 +34,19 @@ public interface ArchivoService {
             throws ArchivoDuplicadoException;
 
     public List<ArchivoDTO> getArchivosConVencimientosCercanos();
+    
+    /**
+     * Obtiene archivos con vencimientos cercanos para un usuario específico
+     */
+    public List<ArchivoDTO> getArchivosConVencimientosCercanosPorUsuario(Usuario usuario);
+    
+    /**
+     * Obtiene archivos que vencen hoy para un usuario específico
+     */
+    public List<ArchivoDTO> getArchivosQueVencenHoyPorUsuario(Usuario usuario);
+    
+    /**
+     * Obtiene archivos vencidos para un usuario específico
+     */
+    public List<ArchivoDTO> getArchivosVencidosPorUsuario(Usuario usuario);
 }

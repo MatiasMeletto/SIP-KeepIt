@@ -6,6 +6,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import com.uade.tpo.keepit.exceptions.ArchivoDuplicadoException;
 import com.uade.tpo.keepit.repository.ArchivoRepository;
 import com.uade.tpo.keepit.repository.DirectorioRepository;
 import com.uade.tpo.keepit.repository.DocumentoRepository;
+import com.uade.tpo.keepit.repository.FacturaComercialRepository;
 
 @Service
 public class ArchivoServiceImpl implements ArchivoService {
@@ -35,6 +37,9 @@ public class ArchivoServiceImpl implements ArchivoService {
 
     @Autowired
     private DocumentoRepository documentoRepository;
+    
+    @Autowired
+    private FacturaComercialRepository facturaComercialRepository;
 
     @Override
     public List<ArchivoDTO> getArchivos() {
@@ -118,7 +123,21 @@ public class ArchivoServiceImpl implements ArchivoService {
             }
 
             // Propiedades comunes
-            archivo.setNombre(clasificacion.getNombre());
+            // Usar el nombre recomendado por la IA si está disponible, sino usar el original
+            String nombreFinal = (clasificacion.getNombreRecomendado() != null && 
+                                 !clasificacion.getNombreRecomendado().trim().isEmpty()) 
+                                 ? clasificacion.getNombreRecomendado() 
+                                 : clasificacion.getNombre();
+            
+            // Log para debugging
+            if (clasificacion.getNombreRecomendado() != null && !clasificacion.getNombreRecomendado().trim().isEmpty()) {
+                System.out.println("=== USANDO NOMBRE RECOMENDADO POR IA ===");
+                System.out.println("Nombre original: " + clasificacion.getNombre());
+                System.out.println("Nombre recomendado: " + clasificacion.getNombreRecomendado());
+                System.out.println("==========================================");
+            }
+            
+            archivo.setNombre(nombreFinal);
             archivo.setTipoExtension(clasificacion.getTipoExtension());
             archivo.setUsuario(usuario);
             archivo.setDirectorio(directorio);
@@ -219,10 +238,75 @@ public class ArchivoServiceImpl implements ArchivoService {
 
     @Override
     public List<ArchivoDTO> getArchivosConVencimientosCercanos() {
-        List<Documento> documentos = documentoRepository.findByFechaVencimientoBetween(
-                LocalDate.now(),
-                LocalDate.now().plusDays(7));
-        return documentos.stream()
+        LocalDate hoy = LocalDate.now();
+        LocalDate fechaLimite = hoy.plusDays(7);
+        
+        List<Documento> documentos = documentoRepository.findByFechaVencimientoBetween(hoy, fechaLimite);
+        List<FacturaComercial> facturas = facturaComercialRepository.findFacturasConVencimientoCercano(hoy, fechaLimite);
+        
+        System.out.println("=== ARCHIVOS CON VENCIMIENTOS CERCANOS ===");
+        System.out.println("Rango de fechas: " + hoy + " a " + fechaLimite);
+        System.out.println("Cantidad de documentos encontrados: " + documentos.size());
+        System.out.println("Cantidad de facturas encontradas: " + facturas.size());
+        System.out.println("==========================================");
+        
+        return Stream.concat(documentos.stream(), facturas.stream())
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Obtiene archivos con vencimientos cercanos para un usuario específico
+     */
+    public List<ArchivoDTO> getArchivosConVencimientosCercanosPorUsuario(Usuario usuario) {
+        LocalDate hoy = LocalDate.now();
+        LocalDate fechaLimite = hoy.plusDays(7);
+        
+        // Usar métodos del repositorio que filtran directamente por usuario para mejor performance
+        List<Documento> documentos = documentoRepository.findByFechaVencimientoBetweenAndUsuario(hoy, fechaLimite, usuario);
+        List<FacturaComercial> facturas = facturaComercialRepository.findFacturasConVencimientoCercanoPorUsuario(hoy, fechaLimite, usuario);
+        
+        System.out.println("=== ARCHIVOS CON VENCIMIENTOS CERCANOS PARA USUARIO: " + usuario.getUsername() + " ===");
+        System.out.println("Rango de fechas: " + hoy + " a " + fechaLimite);
+        System.out.println("Cantidad de documentos encontrados: " + documentos.size());
+        System.out.println("Cantidad de facturas encontradas: " + facturas.size());
+        System.out.println("==========================================");
+        
+        return Stream.concat(documentos.stream(), facturas.stream())
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Obtiene archivos que vencen hoy para un usuario específico
+     */
+    public List<ArchivoDTO> getArchivosQueVencenHoyPorUsuario(Usuario usuario) {
+        List<Documento> documentos = documentoRepository.findDocumentosQueVencenHoyPorUsuario(usuario);
+        List<FacturaComercial> facturas = facturaComercialRepository.findFacturasQueVencenHoyPorUsuario(usuario);
+        
+        System.out.println("=== ARCHIVOS QUE VENCEN HOY PARA USUARIO: " + usuario.getUsername() + " ===");
+        System.out.println("Cantidad de documentos que vencen hoy: " + documentos.size());
+        System.out.println("Cantidad de facturas que vencen hoy: " + facturas.size());
+        System.out.println("==========================================");
+        
+        return Stream.concat(documentos.stream(), facturas.stream())
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Obtiene archivos vencidos para un usuario específico
+     */
+    public List<ArchivoDTO> getArchivosVencidosPorUsuario(Usuario usuario) {
+        List<Documento> documentos = documentoRepository.findDocumentosVencidosPorUsuario(usuario);
+        List<FacturaComercial> facturas = facturaComercialRepository.findFacturasVencidasPorUsuario(usuario);
+        
+        System.out.println("=== ARCHIVOS VENCIDOS PARA USUARIO: " + usuario.getUsername() + " ===");
+        System.out.println("Cantidad de documentos vencidos: " + documentos.size());
+        System.out.println("Cantidad de facturas vencidas: " + facturas.size());
+        System.out.println("==========================================");
+        
+        return Stream.concat(documentos.stream(), facturas.stream())
                 .map(this::toDto)
                 .collect(Collectors.toList());
     }

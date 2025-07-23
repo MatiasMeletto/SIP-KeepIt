@@ -17,6 +17,7 @@ public interface ArchivoRepository extends JpaRepository<Archivo, Long> {
     List<Archivo> findByUsuarioAndEliminadoFalse(Usuario usuario);
     Optional<Archivo> findByIdAndUsuarioAndEliminadoFalse(Long id, Usuario usuario);
     List<Archivo> findByNombreAndUsuarioAndEliminadoFalse(String nombre, Usuario usuario);
+    boolean existsByNombreAndUsuarioAndEliminadoFalse(String nombre, Usuario usuario);
     Long countByUsuarioAndEliminadoFalse(Usuario usuario);
     
     @Query("SELECT COUNT(a) FROM Archivo a WHERE a.directorio = :directorio AND a.eliminado = false")
